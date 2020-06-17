@@ -7,7 +7,8 @@ cd path_to_folder
 git clone https://github.com/muneebullashariff/PeakRDL-pdf.git  
 cd to PeakRDL-pdf   
 pip install -e .      
-https://github.com/muneebullashariff/PeakRDL-uvm
+
+
 Advantages of this approach are:  
 1 - You can install package in your home projects directory.   
 2 - Package includes .git dir, so it's regular Git repository. You can push to your fork right away.    
