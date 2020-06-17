@@ -4,4 +4,4 @@ Usage:
 python print_hierarchy.py <input_rdl_file>
 
 # To generate the UVM collateral
-python pdf_parser.py
+python pdf_parser.py <input_rdl_file>
