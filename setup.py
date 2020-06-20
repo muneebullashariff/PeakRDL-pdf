@@ -9,7 +9,7 @@ with open(os.path.join("peakrdl/pdf", "__about__.py")) as f:
     v_dict = {}
     exec(f.read(), v_dict)
     version = v_dict['__version__']
-(https://github.com/muneebullashariff/systemrdl-compiler
+
 setuptools.setup(
     name="peakrdl-pdf",
     version=version,

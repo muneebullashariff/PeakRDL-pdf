@@ -3,55 +3,24 @@ import re
 import datetime
 import time
 
-import jinja2 as jj
 from systemrdl.node import RootNode, Node, RegNode, AddrmapNode, RegfileNode
 from systemrdl.node import FieldNode, MemNode, AddressableNode
 from systemrdl.rdltypes import AccessType, OnReadType, OnWriteType
 from systemrdl import RDLWalker
 
+from .pdf_creator import PDFCreator
 from .pre_export_listener import PreExportListener
 
-class UVMExporter:
+class PDFExporter:
     
     def __init__(self, **kwargs):
         """
-        Constructor for the UVM Exporter class
-
-        Parameters
-        ----------
-        user_template_dir: str
-            Path to a directory where user-defined template overrides are stored.
-        user_template_context: dict
-            Additional context variables to load into the template namespace.
+        Constructor for the PDF Exporter class
         """
-        user_template_dir = kwargs.pop("user_template_dir", None)
-        self.user_template_context = kwargs.pop("user_template_context", dict())
 
         # Check for stray kwargs
         if kwargs:
             raise TypeError("got an unexpected keyword argument '%s'" % list(kwargs.keys())[0])
-
-        if user_template_dir:
-            loader = jj.ChoiceLoader([
-                jj.FileSystemLoader(user_template_dir),
-                jj.FileSystemLoader(os.path.join(os.path.dirname(__file__), "templates")),
-                jj.PrefixLoader({
-                    'user': jj.FileSystemLoader(user_template_dir),
-                    'base': jj.FileSystemLoader(os.path.join(os.path.dirname(__file__), "templates"))
-                }, delimiter=":")
-            ])
-        else:
-            loader = jj.ChoiceLoader([
-                jj.FileSystemLoader(os.path.join(os.path.dirname(__file__), "templates")),
-                jj.PrefixLoader({
-                    'base': jj.FileSystemLoader(os.path.join(os.path.dirname(__file__), "templates"))
-                }, delimiter=":")
-            ])
-
-        self.jj_env = jj.Environment(
-            loader=loader,
-            undefined=jj.StrictUndefined
-        )
 
         # Define variables used during export
 
@@ -70,16 +39,20 @@ class UVMExporter:
         #   components, this is the original_def (which can be None in some cases)
         self.namespace_db = {}
 
-        self.reuse_class_definitions = True
-
         # Used for making the instance name(s) in uppercase or lowercase
-        self.use_uppercase_inst_name = False
+        self.use_uppercase_inst_name = True
+
+        # Used for address width - Default 32bits
+        self.address_width = 32 
 
         # Get the today's date (mm-dd-yyyy)
         self.today_date = datetime.date.today().strftime('%m-%d-%Y')
 
         # Get the current time (hh:mm:ss)
         self.current_time = time.strftime('%H:%M:%S') 
+
+    def set_address_width(self, node: Node):
+        self.address_width = self.get_address_width(node)
 
     def export(self, node: Node, path: str, **kwargs):
         """
@@ -94,57 +67,28 @@ class UVMExporter:
         path: str
             Output file.
 
-        export_as_package: bool
-            If True (Default), UVM register model is exported as a SystemVerilog
-            package. Package name is based on the output file name.
-
-            If False, register model is exported as an includable header.
-
-        reuse_class_definitions: bool
-            If True (Default), exporter attempts to re-use class definitions
-            where possible. Class names are based on the lexical scope of the
-            original SystemRDL definitions.
-
-            If False, class definitions are not reused. Class names are based on
-            the instance's hierarchical path.
-
-        use_uvm_factory: bool
-            If True, class definitions and class instances are created using the
-            UVM factory.
-
-            If False (Default), UVM factory is disabled. Classes are created
-            directly via new() constructors.
-
-        use_uvm_reg_enhanced: bool
-            If True, the register class definitions will be extended from uvm_reg_enhanced class
-            which has additional functionalities, when compared to UVM library uvm_reg class
-
-            If False (Default), the register class definitions will be extended from 
-            UVM library uvm_reg class
-
         use_uppercase_inst_name: bool
-            If True, all the instance names will be in uppercase
+            If True (Default), all the instance names will be in uppercase
 
-            if False (Default), all the instance names will be in lowercase
+            if False, all the instance names will be in lowercase
         """
-        export_as_package = kwargs.pop("export_as_package", True)
-        self.reuse_class_definitions = kwargs.pop("reuse_class_definitions", True)
-        use_uvm_factory = kwargs.pop("use_uvm_factory", False)
-        use_uvm_reg_enhanced = kwargs.pop("use_uvm_reg_enhanced", False)
-        self.use_uppercase_inst_name = kwargs.pop("use_uppercase_inst_name", False)
+
+        self.use_uppercase_inst_name = kwargs.pop("use_uppercase_inst_name", True)
 
         # Check for stray kwargs
         if kwargs:
             raise TypeError("got an unexpected keyword argument '%s'" % list(kwargs.keys())[0])
 
-        # If it is the root node, skip to top addrmap
-        if isinstance(node, RootNode):
-            node = node.top
-        self.top = node
 
-        # First, traverse the model and collect some information
-        self.bus_width_db = {}
-        RDLWalker().walk(self.top, PreExportListener(self))
+        ## If it is the root node, skip to top addrmap
+        #if isinstance(node, RootNode):
+        #    node = node.top
+        #self.top = node
+
+        ## First, traverse the model and collect some information
+        #self.bus_width_db = {}
+        #RDLWalker().walk(self.top, PreExportListener(self))
+
 
         context = {
             'top_node': node,
@@ -154,53 +98,116 @@ class UVMExporter:
             'MemNode': MemNode,
             'AddressableNode': AddressableNode,
             'isinstance': isinstance,
-            'class_needs_definition': self._class_needs_definition,
-            'get_class_name': self._get_class_name,
-            'get_class_friendly_name': self._get_class_friendly_name,
-            'get_inst_name': self._get_inst_name,
-            'is_field_reserved': self._is_field_reserved,
-            'get_inst_map_name': self._get_inst_map_name,
-            'get_field_access': self._get_field_access,
-            'get_reg_access': self._get_reg_access,
-            'get_address_width': self._get_address_width,
-            'get_base_address': self._get_base_address,
-            'get_array_address_offset_expr': self._get_array_address_offset_expr,
-            'get_endianness': self._get_endianness,
-            'get_bus_width': self._get_bus_width,
-            'get_mem_access': self._get_mem_access,
-            'roundup_to': self._roundup_to,
-            'roundup_pow2': self._roundup_pow2,
-            'use_uvm_factory': use_uvm_factory,
-            'use_uvm_reg_enhanced': use_uvm_reg_enhanced,
+            'class_needs_definition': self.class_needs_definition,
+            'get_class_name': self.get_class_name,
+            'get_class_friendly_name': self.get_class_friendly_name,
+            'get_inst_name': self.get_inst_name,
+            'is_field_reserved': self.is_field_reserved,
+            'get_inst_map_name': self.get_inst_map_name,
+            'get_field_access': self.get_field_access,
+            'get_reg_access': self.get_reg_access,
+            'get_address_width': self.get_address_width,
+            'get_base_address': self.get_base_address,
+            'get_array_address_offset_expr': self.get_array_address_offset_expr,
+            'get_endianness': self.get_endianness,
+            'get_bus_width': self.get_bus_width,
+            'get_mem_access': self.get_mem_access,
+            'roundup_to': self.roundup_to,
+            'roundup_pow2': self.roundup_pow2,
             'get_today_date': self.today_date,
             'get_current_time': self.current_time
         }
 
-        context.update(self.user_template_context)
+        self.generate_output_pdf(node, path)
 
-        if export_as_package:
-            context['package_name'] = self._get_package_name(path)
-            template = self.jj_env.get_template("top_pkg.sv")
-        else:
-            context['include_guard'] = self._get_include_guard(path)
-            template = self.jj_env.get_template("top_include.svh")
-        stream = template.stream(context)
-        stream.dump(path)
+    ###
+    # Generate the output pdf files
+    ###
+    def generate_output_pdf(self, root: RootNode, path: str):
+
+        # Create the object
+        pdf_create = PDFCreator(path)
+
+        #pdf_create.creation() 
+
+        strg = []
+        addrmap_strg = {}
+        addrmap_reg_list_strg = {}
+        strg.append("-------------------------")
+
+        for node in root.descendants(in_post_order=True):
+            # Traverse all the address maps
+            if isinstance(node, AddrmapNode):
+                # set the address width variable 
+                self.set_address_width(node)
+
+                addrmap_strg['Name'] = self.get_addrmap_name(node)
+                addrmap_strg['Desc'] = self.get_addrmap_desc(node)
+                addrmap_strg['Base_address'] = self.get_base_address(node)
+                addrmap_strg['Size'] = self.get_addrmap_size(node)
+                pdf_create.create_addrmap_info(addrmap_strg)
+
+                # Create a list of all registers for the map
+                for reg in node.registers():
+                    addrmap_reg_list_strg['Offset'] = self.get_reg_offset(reg) 
+                    addrmap_reg_list_strg['Identifier'] = self.get_inst_name(reg) 
+                    addrmap_reg_list_strg['Name'] = self.get_addrmap_name(reg) 
+                    pdf_create.create_reg_list_info(addrmap_reg_list_strg)
+
+                pdf_create.dump_reg_list_info()
+
+                # Traverse all the registers
+                for reg in node.registers():
+                    if isinstance(reg, RegNode):
+                        strg.append(self.get_inst_name(reg))
+                        #strg.append(exporter._get_reg_access(reg))
 
 
-    def _get_package_name(self, path: str) -> str:
+                        # Reverse the fields order - MSB first
+                        fields_list = []
+                        for field in reg.fields():
+                            if isinstance(field, FieldNode):
+                                fields_list.append(field)
+
+                        fields_list.reverse()
+
+                        # Traverse all the fields
+                        for field in fields_list:
+                            strg.append(self.get_inst_name(field))
+                            strg.append(self.get_field_access(field))
+
+                        strg.append("-------------------------")
+
+        # Display the contents
+        for k in addrmap_strg:
+            print(k)
+        
+    def get_addrmap_name(self, node: Node) -> str:
+        s = node.get_property("name")
+        return s
+
+    def get_addrmap_desc(self, node: Node) -> str:
+        s = (node.get_property("desc")).replace("\n"," ")
+        return s
+
+    def get_addrmap_size(self, node: Node) -> str:
+        # Get the hex value 
+        s = hex(node.size)
+        return s
+
+    def get_package_name(self, path: str) -> str:
         s = os.path.splitext(os.path.basename(path))[0]
         s = re.sub(r'[^\w]', "_", s)
         return s
 
 
-    def _get_include_guard(self, path: str) -> str:
+    def get_include_guard(self, path: str) -> str:
         s = os.path.basename(path)
         s = re.sub(r'[^\w]', "_", s).upper()
         return s
 
 
-    def _get_class_name(self, node: Node) -> str:
+    def get_class_name(self, node: Node) -> str:
         """
         Returns the class type name.
         Shall be unique enough to prevent type name collisions
@@ -230,7 +237,7 @@ class UVMExporter:
         return class_name
 
 
-    def _get_class_friendly_name(self, node: Node) -> str:
+    def get_class_friendly_name(self, node: Node) -> str:
         """
         Returns a useful string that helps identify the class definition in
         a comment
@@ -255,7 +262,7 @@ class UVMExporter:
         return type(node.inst).__name__ + " - " + friendly_name
 
 
-    def _get_inst_name(self, node: Node) -> str:
+    def get_inst_name(self, node: Node) -> str:
         """
         Returns the class instance name
         """
@@ -265,20 +272,20 @@ class UVMExporter:
         else:
             return node.inst_name.lower()
 
-    def _is_field_reserved(self, field: FieldNode) -> bool:
+    def is_field_reserved(self, field: FieldNode) -> bool:
         """
         Returns True if the field is reserved
         """
 
         # Check if the field is reserved type 
-        is_reserved = re.search("reserved",field.inst_name)
+        is_reserved = re.search("reserved",field.inst_name, re.IGNORECASE)
 
         if is_reserved:
             return True
         else:
             return False
 
-    def _get_inst_map_name(self, node: Node) -> str:
+    def get_inst_map_name(self, node: Node) -> str:
         """
         Returns the address map name
         """
@@ -293,7 +300,7 @@ class UVMExporter:
 
         return amap_name
 
-    def _class_needs_definition(self, node: Node) -> bool:
+    def class_needs_definition(self, node: Node) -> bool:
         """
         Checks if the class that defines this node already exists.
         If not, returns True, indicating that a definition shall be emitted.
@@ -321,7 +328,7 @@ class UVMExporter:
         return True
 
 
-    def _get_field_access(self, field: FieldNode) -> str:
+    def get_field_access(self, field: FieldNode) -> str:
         """
         Get field's UVM access string
         """
@@ -397,14 +404,14 @@ class UVMExporter:
             return "NOACCESS"
 
 
-    def _get_mem_access(self, mem: MemNode) -> str:
+    def get_mem_access(self, mem: MemNode) -> str:
         sw = mem.get_property("sw")
         if sw == AccessType.r:
             return "R"
         else:
             return "RW"
 
-    def _get_reg_access(self, reg: RegNode) -> str:
+    def get_reg_access(self, reg: RegNode) -> str:
         """
         Get register's UVM access for the map - string
         """
@@ -416,7 +423,7 @@ class UVMExporter:
         else:
             return "RW"
 
-    def _get_address_width(self, node: Node) -> str:
+    def get_address_width(self, node: Node) -> str:
         """
         Returns the address width for the register access
         """
@@ -433,24 +440,46 @@ class UVMExporter:
     
         return address_width 
 
-    def _get_base_address(self, node: Node) -> str:
+    def get_base_address(self, node: Node) -> str:
         """
         Returns the base address for the register block 
         """
-
+        
+        # Get the property value
         amap = node.owning_addrmap
         base_address = amap.get_property("base_address_p");
 
+        # Get the formatted base_address
         if base_address:
-            # Convert the value into hexadecimal 
-            # excluding 0x - just the value
-            base_address = hex(base_address)[2:]
+            base_address = self.format_address(base_address)
         else:
-            base_address = 0;
+            base_address = self.format_address(0)
 
         return base_address 
 
-    def _get_array_address_offset_expr(self, node: AddressableNode) -> str:
+    def format_address(self, address: str) -> str:
+
+        no_of_nib = self.address_width/4
+
+        # 64bit address
+        if no_of_nib == 16:
+            format_number = no_of_nib + 3
+        # 32bit address     
+        else:
+            format_number = no_of_nib +1
+
+        # format the string to have underscore in hex value
+        format_str = '{:0' + str(int(format_number)) + '_x}'
+        final_value = (format_str.format(address))
+
+        return (str(self.address_width) +"'h"+ final_value)
+
+    def get_reg_offset(self, node: RegNode) -> str:
+        add_offset = node.address_offset
+        s = self.format_address(add_offset)
+        return s
+
+    def get_array_address_offset_expr(self, node: AddressableNode) -> str:
         """
         Returns an expression to calculate the address offset
         for example, a 4-dimensional array allocated as:
@@ -468,7 +497,7 @@ class UVMExporter:
         return s
 
 
-    def _get_endianness(self, node: Node) -> str:
+    def get_endianness(self, node: Node) -> str:
         amap = node.owning_addrmap
         if amap.get_property("bigendian"):
             return "UVM_BIG_ENDIAN"
@@ -478,7 +507,7 @@ class UVMExporter:
             return "UVM_NO_ENDIAN"
 
 
-    def _get_bus_width(self, node: Node) -> int:
+    def get_bus_width(self, node: Node) -> int:
         """
         Returns group-like node's bus width (in bytes)
         """
@@ -491,7 +520,7 @@ class UVMExporter:
             return width // 8
 
 
-    def _roundup_to(self, x: int, n: int) -> int:
+    def roundup_to(self, x: int, n: int) -> int:
         """
         Round x up to the nearest n
         """
@@ -501,5 +530,6 @@ class UVMExporter:
             return (x//n) * n
 
 
-    def _roundup_pow2(self, x):
+    def roundup_pow2(self, x):
         return 1<<(x-1).bit_length()
+
