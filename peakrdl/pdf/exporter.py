@@ -141,18 +141,39 @@ class PDFExporter:
                 # set the address width variable 
                 self.set_address_width(node)
 
-                addrmap_strg['Name'] = self.get_addrmap_name(node)
+                addrmap_strg['Name'] = self.get_name(node)
                 addrmap_strg['Desc'] = self.get_addrmap_desc(node)
                 addrmap_strg['Base_address'] = self.get_base_address(node)
                 addrmap_strg['Size'] = self.get_addrmap_size(node)
                 pdf_create.create_addrmap_info(addrmap_strg)
 
                 # Create a list of all registers for the map
-                for reg in node.registers():
-                    addrmap_reg_list_strg['Offset'] = self.get_reg_offset(reg) 
-                    addrmap_reg_list_strg['Identifier'] = self.get_inst_name(reg) 
-                    addrmap_reg_list_strg['Name'] = self.get_addrmap_name(reg) 
+                for reg_id, reg in enumerate(node.registers()):
+
+                    # Reserved addresses at the start of the address map
+                    if reg_id == 0 and reg.address_offset != 0:
+                        addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset-1)
+                        addrmap_reg_list_strg['Identifier'] = "-" 
+                        addrmap_reg_list_strg['Name']       = "-"
+                        pdf_create.create_reg_list_info(addrmap_reg_list_strg)
+                    # Reserved addresses in between the address map
+                    elif (reg_id != 0) and (reg_previous.address_offset + reg_previous.total_size) < reg.address_offset:
+                        index = 0
+                        while((reg_previous.address_offset + reg_previous.total_size + index) < reg.address_offset):
+                            addrmap_reg_list_strg['Offset']     = self.format_address(reg_previous.address_offset + reg_previous.total_size + index)
+                            addrmap_reg_list_strg['Identifier'] = "-" 
+                            addrmap_reg_list_strg['Name']       = "-"
+                            pdf_create.create_reg_list_info(addrmap_reg_list_strg)
+                            index = index + reg.total_size
+
+                    # Normal registers in the address map
+                    addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset) 
+                    addrmap_reg_list_strg['Identifier'] = self.get_inst_name(reg)
+                    addrmap_reg_list_strg['Name']       = self.get_name(reg)
                     pdf_create.create_reg_list_info(addrmap_reg_list_strg)
+
+                    # Store previous item
+                    reg_previous = reg
 
                 pdf_create.dump_reg_list_info()
 
@@ -182,7 +203,7 @@ class PDFExporter:
         for k in addrmap_strg:
             print(k)
         
-    def get_addrmap_name(self, node: Node) -> str:
+    def get_name(self, node: Node) -> str:
         s = node.get_property("name")
         return s
 
@@ -472,7 +493,7 @@ class PDFExporter:
         format_str = '{:0' + str(int(format_number)) + '_x}'
         final_value = (format_str.format(address))
 
-        return (str(self.address_width) +"'h"+ final_value)
+        return (str(self.address_width) +"'h"+ final_value.upper())
 
     def get_reg_offset(self, node: RegNode) -> str:
         add_offset = node.address_offset

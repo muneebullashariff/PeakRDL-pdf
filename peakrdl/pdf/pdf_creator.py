@@ -144,19 +144,6 @@ class PDFCreator:
         P_name = Paragraph(reg_info_dict['Name'],styleSheet["BodyTextP"])    
 
         table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
-        table_data.append([P_offset, P_identifier, P_name])
 
             #if key == "Offset":
             #    print("%s: %s" % (key, reg_info_dict[key]))
