@@ -34,7 +34,8 @@ class PDFCreator:
             raise TypeError("got an unexpected keyword argument '%s'" % list(kwargs.keys())[0])
 
         # Define variables used during creation
-        global doc, elements, styleSheet, table_data, doc_color
+        global doc, elements, styleSheet, doc_color
+        global table_data_reg_list, table_data_field_list
 
         # Create the document
         doc = SimpleDocTemplate(output_file, pagesize=A4)
@@ -43,10 +44,16 @@ class PDFCreator:
         elements = []
 
         ## Table data
-        table_data = []
+        table_data_reg_list = []
+        table_data_field_list = []
 
         # Document color
-        doc_color = dimgrey
+        #doc_color = darkgrey
+        #doc_color = dimgrey
+        #doc_color = black
+        doc_color  = colors.HexColor(0x040003)
+        doc_color  = colors.HexColor(0x0f000d)
+        doc_color  = colors.HexColor(0x24001e)
 
         # Create the style sheet
         styleSheet = getSampleStyleSheet()
@@ -82,7 +89,7 @@ class PDFCreator:
         styleSheet.add(ParagraphStyle(name='BodyTextT',
                                       fontName=_baseFontName,
                                       textColor=doc_color,
-                                      alignment=TA_CENTER,
+                                      #alignment=TA_CENTER,
                                       fontSize=10,
                                       leading=12),
                        alias='BTT')
@@ -128,41 +135,114 @@ class PDFCreator:
         elements.append(Paragraph('Registers List', styleSheet["H2p"]))
         elements.append(Spacer(0, 0.4*inch))
 
-        ## Actual data
+        ## Actual Header data
         P_offset_header = Paragraph('<b>Offset</b>',styleSheet["BodyTextT"])    
         P_identifier_header = Paragraph('<b>Identifier</b>',styleSheet["BodyTextT"])    
         P_name_header = Paragraph('<b>Name</b>',styleSheet["BodyTextT"])    
-        table_data.append([P_offset_header, P_identifier_header, P_name_header])
+        table_data_reg_list.append([P_offset_header, P_identifier_header, P_name_header])
 
-        #self.creation()
-        #self.build_document()
+    def create_register_info(self, reg_info_dict: dict):
+        for key in reg_info_dict:
+            if key == "Name":
+                elements.append(Paragraph(reg_info_dict[key], styleSheet["H1p"]))
+                elements.append(Spacer(0, 0.5*inch))
+            elif key == "Desc":
+                elements.append(Paragraph(reg_info_dict[key], styleSheet["BodyTextP"]))
+                elements.append(Spacer(0, 0.2*inch))
+            elif key == "Absolute_address":
+                elements.append(Paragraph(('<b>Absolute Address : \t</b>' + reg_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Base_offset":
+                elements.append(Paragraph(('<b>Base Offset : </b>' + reg_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Access":
+                elements.append(Paragraph(('<b>Access : </b>' + reg_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Reset":
+                elements.append(Paragraph(('<b>Reset : </b>' + reg_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Size":
+                elements.append(Paragraph(('<b>Size(bytes) : </b>' + reg_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+                elements.append(Spacer(0, 0.2*inch))
+            else:
+                print("Error - Not a valid key (%s) for the register" %key)
 
-    def create_reg_list_info(self, reg_info_dict: dict):
+        # Add the Fields list
+        elements.append(Paragraph('Fields List', styleSheet["H2p"]))
+        elements.append(Spacer(0, 0.4*inch))
+
+        ## Actual Header data
+        P_offset_header = Paragraph('<b>Bits</b>',styleSheet["BodyTextT"])    
+        P_identifier_header = Paragraph('<b>Identifier</b>',styleSheet["BodyTextT"])    
+        P_access_header = Paragraph('<b>Access</b>',styleSheet["BodyTextT"])    
+        P_reset_header = Paragraph('<b>Reset</b>',styleSheet["BodyTextT"])    
+        P_name_header = Paragraph('<b>Name / Description </b>',styleSheet["BodyTextT"])    
+
+
+        # Clear any previous values
+        table_data_field_list.clear()
+
+        table_data_field_list.append([P_offset_header, 
+                                      P_identifier_header, 
+                                      P_access_header, 
+                                      P_reset_header,
+                                      P_name_header])
+
+    ###
+    # Create the register's list info
+    ###
+    def create_reg_list_info(self, reg_info_dict: dict, is_reserved: bool):
 
         P_offset = Paragraph(reg_info_dict['Offset'],styleSheet["BodyTextP"])    
-        P_identifier = Paragraph(reg_info_dict['Identifier'],styleSheet["BodyTextP"])    
+
+        if is_reserved:
+            P_identifier = Paragraph(reg_info_dict['Identifier'],styleSheet["BodyTextP"])    
+        else:
+            link = "<a href=\"#" + (reg_info_dict['Name']).replace(" ","") + "\" color=\"blue\">"
+            P_identifier = Paragraph((link + reg_info_dict['Identifier'] + "</a>"),styleSheet["BodyTextP"])    
+
         P_name = Paragraph(reg_info_dict['Name'],styleSheet["BodyTextP"])    
 
-        table_data.append([P_offset, P_identifier, P_name])
+        table_data_reg_list.append([P_offset, P_identifier, P_name])
 
-            #if key == "Offset":
-            #    print("%s: %s" % (key, reg_info_dict[key]))
-            #    elements.append(Paragraph(reg_info_dict[key], styleSheet["H1p"]))
-            #    elements.append(Spacer(0, 0.5*inch))
-            #elif key == "Identifier":
-            #    print("%s: %s" % (key, reg_info_dict[key]))
-            #    elements.append(Paragraph(reg_info_dict[key], styleSheet["BodyTextP"]))
-            #    elements.append(Spacer(0, 0.2*inch))
-            #elif key == "Name":
-            #    print("%s: %s" % (key, reg_info_dict[key]))
-            #    elements.append(Paragraph(('<b>Base Address : </b>' + reg_info_dict[key]), 
-            #                        styleSheet["BodyTextP"]))
-            #else:
-            #    print("Error - Not a valid key for the addrmap register list")
+    ###
+    # Create the field's list info 
+    ###
+    def create_fields_list_info(self, field_info_dict: dict):
+
+        # Bits 
+        P_bits = Paragraph(field_info_dict['Bits'],styleSheet["BodyTextP"])    
+
+        # Identifier
+        P_identifier = Paragraph(field_info_dict['Identifier'],styleSheet["BodyTextP"])    
+
+        # Access
+        P_access = Paragraph(field_info_dict['Access'],styleSheet["BodyTextP"])    
+
+        # Reset 
+        P_reset = Paragraph(field_info_dict['Reset'],styleSheet["BodyTextP"])    
+
+        # Name
+        P_name = Paragraph(field_info_dict['Name'],styleSheet["BodyTextP"])    
+
+        # Description
+        P_desc = Paragraph(field_info_dict['Description'],styleSheet["BodyTextP"])    
+
+        table_data_field_list.append([P_bits, 
+                                      P_identifier, 
+                                      P_access,
+                                      P_reset,
+                                      [P_name,P_desc],
+                                      ])
+
+        # TODO: Give the the coloumn width for fields column
+        ##MSHA
+        #self.dump_field_list_info()
 
     def dump_reg_list_info(self):
-        
-        t=Table(table_data,
+
+        t=Table(table_data_reg_list,
                 splitByRow=1,
                 repeatRows=1,
                 style=[
@@ -184,11 +264,68 @@ class PDFCreator:
         # Table 1
         elements.append(t)
 
+        
+        elements.append(Spacer(1, 1*inch))
+        elements.append(Paragraph('<a name="SlaveSelectRegister"/>Link test', styleSheet["H2p"]))
+        elements.append(Spacer(1, 1*inch))
+        elements.append(Paragraph('<a name="MasterTriggerRegister"/>Link test', styleSheet["H2p"]))
+        elements.append(Spacer(1, 1*inch))
+        elements.append(Paragraph('<a name="ErrorAddressRegister"/>Link test', styleSheet["H2p"]))
+        elements.append(Spacer(1, 1*inch))
+        elements.append(Paragraph('<a name="StatusInformationRegister"/>Link test', styleSheet["H2p"]))
+        elements.append(Spacer(1, 1*inch))
+        elements.append(Paragraph('<a name="GlobalControlRegister"/>Link test', styleSheet["H2p"]))
+        elements.append(Spacer(1, 1*inch))
+        elements.append(Paragraph('<a name="ReceiveDataRegister"/>Link test', styleSheet["H2p"]))
+        elements.append(Spacer(1, 1*inch))
+
         # Space
         elements.append(Spacer(1, 1*inch))
         
-        #self.creation()
-        self.build_document()
+    def dump_field_list_info(self):
+
+        t=Table(table_data_field_list,
+                colWidths=[45,80,50,70,190],
+                splitByRow=1,
+                repeatRows=1,
+                style=[
+                    ('GRID',(0,0),(-1,-1),0.5,doc_color),
+                    ('LINEABOVE',(0,1),(-1,1),1,colors.black),
+                    ('BACKGROUND',(0,0),(-1,0),colors.HexColor(0xD9D9D9)),
+                    ('ALIGN',(0,0),(-1,-1),'LEFT'),
+                    ('VALIGN',(0,1),(-1,-1),'MIDDLE'),
+                    ])
+                            #('BOX',(0,0),(1,-1),2,colors.red),
+                            #('LINEBEFORE',(2,1),(2,-2),1,colors.blue),
+                            #('BOX',(0,0),(-1,-1),2,colors.black),
+                            #('GRID',(0,0),(-1,-1),0.5,colors.black),
+                            #('VALIGN',(3,0),(3,0),'BOTTOM'),
+                            #('BACKGROUND',(3,1),(3,1),colors.khaki),
+                            #('ALIGN',(3,1),(3,1),'CENTER'),
+                            #('BACKGROUND',(3,2),(3,2),colors.beige),
+                            #('ALIGN',(3,2),(3,2),'LEFT'),
+                            #])
+
+        # Table 1
+        elements.append(t)
+
+        #elements.append(Spacer(1, 7*inch))
+        #elements.append(Paragraph('<a name="SlaveSelectRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 7*inch))
+        #elements.append(Paragraph('<a name="MasterTriggerRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 7*inch))
+        #elements.append(Paragraph('<a name="ErrorAddressRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 7*inch))
+        #elements.append(Paragraph('<a name="StatusInformationRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 7*inch))
+        #elements.append(Paragraph('<a name="GlobalControlRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 7*inch))
+        #elements.append(Paragraph('<a name="ReceiveDataRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 7*inch))
+
+        # Space
+        elements.append(Spacer(1, 1*inch))
+
 
     def creation(self):
 
