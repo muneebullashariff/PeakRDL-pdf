@@ -58,7 +58,9 @@ class PDFExporter:
         self.address_width = self.get_address_width(node)
 
     def set_base_address(self, node:Node):
-        self.base_address = self.get_base_address(node)
+        # Get the property value
+        amap = node.owning_addrmap
+        self.base_address = amap.get_property("base_address_p", default=0x0);
 
     def export(self, node: Node, path: str, **kwargs):
         """
@@ -138,8 +140,9 @@ class PDFExporter:
             # Traverse all the address maps
             if isinstance(node, AddrmapNode):
                 addrmap_strg = {}
-                # set the address width variable 
+                # set the required variable 
                 self.set_address_width(node)
+                self.set_base_address(node)
 
                 addrmap_strg['Name'] = self.get_name(node)
                 addrmap_strg['Desc'] = self.get_desc(node)
