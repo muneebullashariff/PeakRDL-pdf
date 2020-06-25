@@ -45,6 +45,9 @@ class PDFExporter:
         # Used for address width - Default 32bits
         self.address_width = 32 
 
+        # Used for absoulte address calculations
+        self.base_address = 0x0
+
         # Get the today's date (mm-dd-yyyy)
         self.today_date = datetime.date.today().strftime('%m-%d-%Y')
 
@@ -53,6 +56,9 @@ class PDFExporter:
 
     def set_address_width(self, node: Node):
         self.address_width = self.get_address_width(node)
+
+    def set_base_address(self, node:Node):
+        self.base_address = self.get_base_address(node)
 
     def export(self, node: Node, path: str, **kwargs):
         """
@@ -90,33 +96,33 @@ class PDFExporter:
         #RDLWalker().walk(self.top, PreExportListener(self))
 
 
-        context = {
-            'top_node': node,
-            'RegNode': RegNode,
-            'RegfileNode': RegfileNode,
-            'AddrmapNode': AddrmapNode,
-            'MemNode': MemNode,
-            'AddressableNode': AddressableNode,
-            'isinstance': isinstance,
-            'class_needs_definition': self.class_needs_definition,
-            'get_class_name': self.get_class_name,
-            'get_class_friendly_name': self.get_class_friendly_name,
-            'get_inst_name': self.get_inst_name,
-            'is_field_reserved': self.is_field_reserved,
-            'get_inst_map_name': self.get_inst_map_name,
-            'get_field_access': self.get_field_access,
-            'get_reg_access': self.get_reg_access,
-            'get_address_width': self.get_address_width,
-            'get_base_address': self.get_base_address,
-            'get_array_address_offset_expr': self.get_array_address_offset_expr,
-            'get_endianness': self.get_endianness,
-            'get_bus_width': self.get_bus_width,
-            'get_mem_access': self.get_mem_access,
-            'roundup_to': self.roundup_to,
-            'roundup_pow2': self.roundup_pow2,
-            'get_today_date': self.today_date,
-            'get_current_time': self.current_time
-        }
+        #context = {
+        #    'top_node': node,
+        #    'RegNode': RegNode,
+        #    'RegfileNode': RegfileNode,
+        #    'AddrmapNode': AddrmapNode,
+        #    'MemNode': MemNode,
+        #    'AddressableNode': AddressableNode,
+        #    'isinstance': isinstance,
+        #    'class_needs_definition': self.class_needs_definition,
+        #    'get_class_name': self.get_class_name,
+        #    'get_class_friendly_name': self.get_class_friendly_name,
+        #    'get_inst_name': self.get_inst_name,
+        #    'is_field_reserved': self.is_field_reserved,
+        #    'get_inst_map_name': self.get_inst_map_name,
+        #    'get_field_access': self.get_field_access,
+        #    'get_reg_access': self.get_reg_access,
+        #    'get_address_width': self.get_address_width,
+        #    'get_base_address': self.get_base_address,
+        #    'get_array_address_offset_expr': self.get_array_address_offset_expr,
+        #    'get_endianness': self.get_endianness,
+        #    'get_bus_width': self.get_bus_width,
+        #    'get_mem_access': self.get_mem_access,
+        #    'roundup_to': self.roundup_to,
+        #    'roundup_pow2': self.roundup_pow2,
+        #    'get_today_date': self.today_date,
+        #    'get_current_time': self.current_time
+        #}
 
         self.generate_output_pdf(node, path)
 
@@ -128,34 +134,29 @@ class PDFExporter:
         # Create the object
         pdf_create = PDFCreator(path)
 
-        #pdf_create.creation() 
-
-        strg = []
-        addrmap_strg = {}
-        addrmap_reg_list_strg = {}
-        strg.append("-------------------------")
-
         for node in root.descendants(in_post_order=True):
             # Traverse all the address maps
             if isinstance(node, AddrmapNode):
+                addrmap_strg = {}
                 # set the address width variable 
                 self.set_address_width(node)
 
                 addrmap_strg['Name'] = self.get_name(node)
-                addrmap_strg['Desc'] = self.get_addrmap_desc(node)
+                addrmap_strg['Desc'] = self.get_desc(node)
                 addrmap_strg['Base_address'] = self.get_base_address(node)
                 addrmap_strg['Size'] = self.get_addrmap_size(node)
                 pdf_create.create_addrmap_info(addrmap_strg)
 
                 # Create a list of all registers for the map
                 for reg_id, reg in enumerate(node.registers()):
-
+                    addrmap_reg_list_strg = {}
+                    
                     # Reserved addresses at the start of the address map
                     if reg_id == 0 and reg.address_offset != 0:
                         addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset-1)
                         addrmap_reg_list_strg['Identifier'] = "-" 
                         addrmap_reg_list_strg['Name']       = "-"
-                        pdf_create.create_reg_list_info(addrmap_reg_list_strg)
+                        pdf_create.create_reg_list_info(addrmap_reg_list_strg, 1)
                     # Reserved addresses in between the address map
                     elif (reg_id != 0) and (reg_previous.address_offset + reg_previous.total_size) < reg.address_offset:
                         index = 0
@@ -163,51 +164,67 @@ class PDFExporter:
                             addrmap_reg_list_strg['Offset']     = self.format_address(reg_previous.address_offset + reg_previous.total_size + index)
                             addrmap_reg_list_strg['Identifier'] = "-" 
                             addrmap_reg_list_strg['Name']       = "-"
-                            pdf_create.create_reg_list_info(addrmap_reg_list_strg)
+                            pdf_create.create_reg_list_info(addrmap_reg_list_strg, 1)
                             index = index + reg.total_size
 
                     # Normal registers in the address map
                     addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset) 
                     addrmap_reg_list_strg['Identifier'] = self.get_inst_name(reg)
                     addrmap_reg_list_strg['Name']       = self.get_name(reg)
-                    pdf_create.create_reg_list_info(addrmap_reg_list_strg)
+                    pdf_create.create_reg_list_info(addrmap_reg_list_strg, 0)
 
                     # Store previous item
                     reg_previous = reg
 
                 pdf_create.dump_reg_list_info()
 
-                # Traverse all the registers
-                for reg in node.registers():
-                    if isinstance(reg, RegNode):
-                        strg.append(self.get_inst_name(reg))
-                        #strg.append(exporter._get_reg_access(reg))
+                # Traverse all the registers for separate register(s) section
+                for reg_id, reg in enumerate(node.registers()):
+                    registers_strg = {}
+                    registers_strg['Name'] = self.get_name(reg)
+                    registers_strg['Desc'] = self.get_desc(reg)
+                    registers_strg['Absolute_address'] = self.get_reg_absolute_address(reg)
+                    registers_strg['Base_offset'] = self.get_reg_offset(reg)
+                    registers_strg['Access'] = self.get_reg_access(reg)
+                    registers_strg['Reset'] = self.get_reg_reset(reg)
+                    registers_strg['Size'] = self.get_reg_size(reg)
 
+                    pdf_create.create_register_info(registers_strg)
 
-                        # Reverse the fields order - MSB first
-                        fields_list = []
-                        for field in reg.fields():
-                            if isinstance(field, FieldNode):
-                                fields_list.append(field)
+                    # Reverse the fields order - MSB first
+                    fields_list = []
+                    for field in reg.fields():
+                        if isinstance(field, FieldNode):
+                            fields_list.append(field)
 
-                        fields_list.reverse()
+                    fields_list.reverse()
 
-                        # Traverse all the fields
-                        for field in fields_list:
-                            strg.append(self.get_inst_name(field))
-                            strg.append(self.get_field_access(field))
+                    # Traverse all the fields
+                    for field in fields_list:
+                        fields_list_strg = {}
+                        fields_list_strg['Bits']        = self.get_field_bits(field)
+                        fields_list_strg['Identifier']  = self.get_inst_name(field)
+                        fields_list_strg['Access']      = self.get_field_access(field)
+                        fields_list_strg['Reset']       = self.get_field_reset(field)
+                        fields_list_strg['Name']        = self.get_name(field)
+                        fields_list_strg['Description'] = self.get_desc(field)
 
-                        strg.append("-------------------------")
+                        pdf_create.create_fields_list_info(fields_list_strg)
+
+                    pdf_create.dump_field_list_info()
+
 
         # Display the contents
         for k in addrmap_strg:
             print(k)
         
+        pdf_create.build_document()
+
     def get_name(self, node: Node) -> str:
         s = node.get_property("name")
         return s
 
-    def get_addrmap_desc(self, node: Node) -> str:
+    def get_desc(self, node: Node) -> str:
         s = (node.get_property("desc")).replace("\n"," ")
         return s
 
@@ -215,73 +232,6 @@ class PDFExporter:
         # Get the hex value 
         s = hex(node.size)
         return s
-
-    def get_package_name(self, path: str) -> str:
-        s = os.path.splitext(os.path.basename(path))[0]
-        s = re.sub(r'[^\w]', "_", s)
-        return s
-
-
-    def get_include_guard(self, path: str) -> str:
-        s = os.path.basename(path)
-        s = re.sub(r'[^\w]', "_", s).upper()
-        return s
-
-
-    def get_class_name(self, node: Node) -> str:
-        """
-        Returns the class type name.
-        Shall be unique enough to prevent type name collisions
-        """
-        if self.reuse_class_definitions:
-            scope_path = node.inst.get_scope_path(scope_separator="__")
-
-            if (scope_path is not None) and (node.type_name is not None):
-                if scope_path:
-                    class_name = scope_path + "__" + node.type_name
-                else:
-                    class_name = node.type_name
-            else:
-                # Unable to determine a reusable type name. Fall back to hierarchical path
-                class_name = node.get_rel_path(
-                    self.top.parent,
-                    hier_separator="__", array_suffix="", empty_array_suffix=""
-                )
-                # Add prefix to prevent collision when mixing namespace methods
-                class_name = "xtern__" + class_name
-        else:
-            class_name = node.get_rel_path(
-                self.top.parent,
-                hier_separator="__", array_suffix="", empty_array_suffix=""
-            )
-
-        return class_name
-
-
-    def get_class_friendly_name(self, node: Node) -> str:
-        """
-        Returns a useful string that helps identify the class definition in
-        a comment
-        """
-        if self.reuse_class_definitions:
-            scope_path = node.inst.get_scope_path()
-
-            if (scope_path is not None) and (node.type_name is not None):
-                if scope_path:
-                    friendly_name = scope_path + "::" + node.type_name
-                else:
-                    friendly_name = node.type_name
-            else:
-                # Unable to determine a reusable type name. Fall back to hierarchical path
-                friendly_name = node.get_rel_path(
-                    self.top.parent,
-                    hier_separator="__", array_suffix="", empty_array_suffix=""
-                )
-        else:
-            friendly_name = node.get_rel_path(self.top.parent)
-
-        return type(node.inst).__name__ + " - " + friendly_name
-
 
     def get_inst_name(self, node: Node) -> str:
         """
@@ -299,9 +249,9 @@ class PDFExporter:
         """
 
         # Check if the field is reserved type 
-        is_reserved = re.search("reserved",field.inst_name, re.IGNORECASE)
+        is_field_rsvd = re.search("reserved",field.inst_name, re.IGNORECASE)
 
-        if is_reserved:
+        if is_field_rsvd:
             return True
         else:
             return False
@@ -321,33 +271,17 @@ class PDFExporter:
 
         return amap_name
 
-    def class_needs_definition(self, node: Node) -> bool:
+    def get_field_bits(self, field: FieldNode) -> str:
         """
-        Checks if the class that defines this node already exists.
-        If not, returns True, indicating that a definition shall be emitted.
-
-        If returning True, then the act of calling this function also registers
-        the class definition into the namespace database so that future calls
-        for equivalent node types will return False
+        Get the bits [msb:lsb]
         """
-        type_name = self._get_class_name(node)
 
-        if type_name in self.namespace_db:
-            obj = self.namespace_db[type_name]
+        if field.msb != field.lsb:
+            s = "[%s:%s]" % (field.msb,field.lsb)
+        else:
+            s = "[%s]" % (field.msb)
 
-            # Sanity-check for collisions
-            if (obj is None) or (obj is not node.inst.original_def):
-                raise RuntimeError("Namespace collision! Type-name generation is not robust enough to create unique names!")
-
-            # This object likely represents the existing class definition
-            # Ok to omit the re-definition
-            return False
-
-        # Need to emit a new definition
-        # First, register it in the namespace
-        self.namespace_db[type_name] = node.inst.original_def
-        return True
-
+        return s
 
     def get_field_access(self, field: FieldNode) -> str:
         """
@@ -373,21 +307,21 @@ class PDFExporter:
             elif (onread == OnReadType.rset) and (onwrite == OnWriteType.wclr):
                 return "WCRS"
             elif onwrite == OnWriteType.woclr:
-                return "W1C"
+                return "RW1C"
             elif onwrite == OnWriteType.woset:
-                return "W1S"
+                return "RW1S"
             elif onwrite == OnWriteType.wot:
-                return "W1T"
+                return "RW1T"
             elif onwrite == OnWriteType.wzc:
-                return "W0C"
+                return "RW0C"
             elif onwrite == OnWriteType.wzs:
-                return "W0S"
+                return "RW0S"
             elif onwrite == OnWriteType.wzt:
-                return "W0T"
+                return "RW0T"
             elif onwrite == OnWriteType.wclr:
-                return "WC"
+                return "RWC"
             elif onwrite == OnWriteType.wset:
-                return "WS"
+                return "RWS"
             elif onread == OnReadType.rclr:
                 return "WRC"
             elif onread == OnReadType.rset:
@@ -425,6 +359,35 @@ class PDFExporter:
             return "NOACCESS"
 
 
+    def get_field_reset(self, field: FieldNode) -> str:
+        """
+        Get the field reset value
+        """
+
+        # Get the value 
+        field_reset = field.get_property('reset',default=0) 
+
+        # Format the value
+        field_width = field.width
+        no_of_nib = field_width/4
+
+        # 64bit data
+        if no_of_nib == 16:
+            format_number = no_of_nib + 3
+        # 32bit data
+        elif no_of_nib == 8:
+            format_number = no_of_nib + 1
+        #  16bit or 8bit data     
+        else:
+            format_number = no_of_nib 
+
+        # format the string to have underscore in hex value
+        format_str = '{:0' + str(int(format_number)) + '_x}'
+        final_value = (format_str.format(field_reset))
+
+        return (str(field_width) +"'h"+ final_value.upper())
+
+
     def get_mem_access(self, mem: MemNode) -> str:
         sw = mem.get_property("sw")
         if sw == AccessType.r:
@@ -432,17 +395,71 @@ class PDFExporter:
         else:
             return "RW"
 
-    def get_reg_access(self, reg: RegNode) -> str:
+    def get_reg_absolute_address(self, node: RegNode) -> str:
+        #abs_addr = self.absolute_address
+        abs_addr = self.base_address + node.address_offset
+        s = self.format_address(abs_addr)
+        return s
+
+    def get_reg_offset(self, node: RegNode) -> str:
+        add_offset = node.address_offset
+        s = self.format_address(add_offset)
+        return s
+
+    def get_reg_access(self, node: RegNode) -> str:
         """
-        Get register's UVM access for the map - string
+        Get register's access for the map
         """
 
-        regaccess = reg.get_property("regaccess_p")
+        regaccess = node.get_property("regaccess_p")
 
         if regaccess:
             return regaccess
         else:
             return "RW"
+
+    def get_reg_reset(self, node: RegNode) -> str:
+        """
+        Concatenate the value of the individual fields
+        to form the register value
+        """
+
+        reg_reset = 0;
+        
+        # Deduce the reset value
+        for field in node.fields():
+            if isinstance(field, FieldNode):
+                field_reset = field.get_property('reset',default=0) 
+                field_lsb_pos = field.lsb
+                reg_reset |= field_reset << field_lsb_pos
+        
+
+        # Format the value
+        register_width = node.get_property('regwidth')
+        no_of_nib = register_width/4
+
+        # 64bit data
+        if no_of_nib == 16:
+            format_number = no_of_nib + 3
+        # 32bit data
+        elif no_of_nib == 8:
+            format_number = no_of_nib + 1
+        #  16bit or 8bit data     
+        else:
+            format_number = no_of_nib 
+
+        # format the string to have underscore in hex value
+        format_str = '{:0' + str(int(format_number)) + '_x}'
+        final_value = (format_str.format(reg_reset))
+
+        return (str(register_width) +"'h"+ final_value.upper())
+
+    def get_reg_size(self, node: RegNode) -> str:
+        """
+        Get the size of the register
+        """
+
+        return (hex(node.total_size))
 
     def get_address_width(self, node: Node) -> str:
         """
@@ -494,11 +511,6 @@ class PDFExporter:
         final_value = (format_str.format(address))
 
         return (str(self.address_width) +"'h"+ final_value.upper())
-
-    def get_reg_offset(self, node: RegNode) -> str:
-        add_offset = node.address_offset
-        s = self.format_address(add_offset)
-        return s
 
     def get_array_address_offset_expr(self, node: AddressableNode) -> str:
         """

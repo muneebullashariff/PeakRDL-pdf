@@ -1,6 +1,6 @@
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4, inch
-from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Table, Spacer
+from reportlab.platypus import Image, Paragraph, PageBreak, SimpleDocTemplate, Table, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.colors import white, black, grey, dimgrey, darkgrey, darkslategrey
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
@@ -144,6 +144,9 @@ class PDFCreator:
     def create_register_info(self, reg_info_dict: dict):
         for key in reg_info_dict:
             if key == "Name":
+                tag_id = "<a name=\"" +  (reg_info_dict[key]).replace(" ","") + "\"/>"
+                dummy = "" # done so that the jump doesn't mask the required data
+                elements.append(Paragraph((tag_id + dummy), styleSheet["BodyTextP"]))
                 elements.append(Paragraph(reg_info_dict[key], styleSheet["H1p"]))
                 elements.append(Spacer(0, 0.5*inch))
             elif key == "Desc":
@@ -199,6 +202,7 @@ class PDFCreator:
         if is_reserved:
             P_identifier = Paragraph(reg_info_dict['Identifier'],styleSheet["BodyTextP"])    
         else:
+            # <a href=#"ID" color="blue"> Text </a>
             link = "<a href=\"#" + (reg_info_dict['Name']).replace(" ","") + "\" color=\"blue\">"
             P_identifier = Paragraph((link + reg_info_dict['Identifier'] + "</a>"),styleSheet["BodyTextP"])    
 
@@ -265,23 +269,26 @@ class PDFCreator:
         elements.append(t)
 
         
-        elements.append(Spacer(1, 1*inch))
-        elements.append(Paragraph('<a name="SlaveSelectRegister"/>Link test', styleSheet["H2p"]))
-        elements.append(Spacer(1, 1*inch))
-        elements.append(Paragraph('<a name="MasterTriggerRegister"/>Link test', styleSheet["H2p"]))
-        elements.append(Spacer(1, 1*inch))
-        elements.append(Paragraph('<a name="ErrorAddressRegister"/>Link test', styleSheet["H2p"]))
-        elements.append(Spacer(1, 1*inch))
-        elements.append(Paragraph('<a name="StatusInformationRegister"/>Link test', styleSheet["H2p"]))
-        elements.append(Spacer(1, 1*inch))
-        elements.append(Paragraph('<a name="GlobalControlRegister"/>Link test', styleSheet["H2p"]))
-        elements.append(Spacer(1, 1*inch))
-        elements.append(Paragraph('<a name="ReceiveDataRegister"/>Link test', styleSheet["H2p"]))
-        elements.append(Spacer(1, 1*inch))
+        #elements.append(Spacer(1, 1*inch))
+        #elements.append(Paragraph('<a name="SlaveSelectRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 1*inch))
+        #elements.append(Paragraph('<a name="MasterTriggerRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 1*inch))
+        #elements.append(Paragraph('<a name="ErrorAddressRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 1*inch))
+        #elements.append(Paragraph('<a name="StatusInformationRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 1*inch))
+        #elements.append(Paragraph('<a name="GlobalControlRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 1*inch))
+        #elements.append(Paragraph('<a name="ReceiveDataRegister"/>Link test', styleSheet["H2p"]))
+        #elements.append(Spacer(1, 1*inch))
 
         # Space
         elements.append(Spacer(1, 1*inch))
         
+        # Page break
+        elements.append(PageBreak())
+
     def dump_field_list_info(self):
 
         t=Table(table_data_field_list,
@@ -326,6 +333,8 @@ class PDFCreator:
         # Space
         elements.append(Spacer(1, 1*inch))
 
+        # Page break
+        elements.append(PageBreak())
 
     def creation(self):
 
