@@ -1,1 +1,1 @@
-Store the required output files in this folder
+The output pdf file(s) are generated and stored in this folder

@@ -237,7 +237,7 @@ addrmap trigger_routing_unit {
       hw = r; 
       sw = rw; 
       fieldwidth = 1; 
-    } reset[1:1] = 1'h0;
+    } reset[1:1] = 1'h1;
     
     field {
       name = "Non-MMR Enable";

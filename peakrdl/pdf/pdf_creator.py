@@ -1,10 +1,18 @@
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, A4, inch
-from reportlab.platypus import Image, Paragraph, PageBreak, SimpleDocTemplate, Table, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import letter, A4, inch, mm
+from reportlab.platypus import Image, Paragraph, PageBreak, Table, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle, ListStyle
+from reportlab.platypus.tableofcontents import TableOfContents, SimpleIndex
 from reportlab.lib.colors import white, black, grey, dimgrey, darkgrey, darkslategrey
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 from reportlab.lib.fonts import tt2ps
+from reportlab.rl_config import defaultPageSize
+from reportlab.platypus.doctemplate import SimpleDocTemplate
+from reportlab.lib.units import cm
+from reportlab.pdfgen import canvas
+
+from examples import myFirstPage, myLaterPages
+
 from reportlab.rl_config import canvas_basefontname as _baseFontName, \
                                 underlineWidth as _baseUnderlineWidth, \
                                 underlineOffset as _baseUnderlineOffset, \
@@ -18,10 +26,44 @@ from reportlab.rl_config import canvas_basefontname as _baseFontName, \
                                 hyphenationMinWordLength as _hyphenationMinWordLength, \
                                 uriWasteReduce as _uriWasteReduce, \
                                 embeddedHyphenation as _embeddedHyphenation
+
+PAGE_HEIGHT=defaultPageSize[1]; PAGE_WIDTH=defaultPageSize[0]
+
 _baseFontNameB = tt2ps(_baseFontName,1,0)
 _baseFontNameI = tt2ps(_baseFontName,0,1)
 _baseFontNameBI = tt2ps(_baseFontName,1,1)
 
+############################################################################
+# Class for implementing the afterFlowable method
+# which is used for registering the TOC enteries
+############################################################################
+class MySimpleDocTemplate(SimpleDocTemplate):
+
+    # Used for registering the required items
+    # into the table of contents
+    def afterFlowable(self, flowable):
+        "Registers TOC entries."
+        if flowable.__class__.__name__ == 'Paragraph':
+            text = flowable.getPlainText()
+            style = flowable.style.name
+
+            if style == 'Header1P':
+                key = 'h1p-%s' % self.seq.nextf('Header1P')
+                self.canv.bookmarkPage(key, fit="FitH")
+                self.notify('TOCEntry', (0, text, self.page, key))
+
+            elif style == 'Header1PS':
+                # Pad spaces  
+                text = ' &nbsp;'*3 + text
+                key = 'h1ps-%s' % self.seq.nextf('Header1PS')
+                self.canv.bookmarkPage(key, fit="FitH")
+                self.notify('TOCEntry', (1, text, self.page, key))
+
+############################################################################
+# Main Pdf creater class with required properties
+# for creating the pdf contents and adding the data 
+# into the pdf document
+############################################################################
 class PDFCreator:
 
     def __init__(self, output_file: str, **kwargs):
@@ -35,10 +77,10 @@ class PDFCreator:
 
         # Define variables used during creation
         global doc, elements, styleSheet, doc_color
-        global table_data_reg_list, table_data_field_list
+        global table_data_reg_list, table_data_field_list, toc
 
         # Create the document
-        doc = SimpleDocTemplate(output_file, pagesize=A4)
+        doc = MySimpleDocTemplate(output_file, pagesize=A4)
 
         # container for the 'Flowable' objects
         elements = []
@@ -51,8 +93,6 @@ class PDFCreator:
         #doc_color = darkgrey
         #doc_color = dimgrey
         #doc_color = black
-        doc_color  = colors.HexColor(0x040003)
-        doc_color  = colors.HexColor(0x0f000d)
         doc_color  = colors.HexColor(0x24001e)
 
         # Create the style sheet
@@ -61,9 +101,36 @@ class PDFCreator:
         # Add more custom styles
         self.add_more_styles()
 
-    # Creating the style sheet Template
-    def add_more_styles(self):
+        # First page
+        elements.append(PageBreak())
 
+        # TOC
+        h1 = ParagraphStyle(name = 'Heading1',
+                            fontName=_baseFontNameB,
+                            textColor=doc_color,
+                            fontSize = 14,
+                            spaceBefore=10,
+                            leading = 16)
+
+        h2 = ParagraphStyle(name = 'Heading2',
+                            fontName=_baseFontName,
+                            textColor=doc_color,
+                            fontSize = 12,
+                            leading = 14)
+
+        # Table of contents 
+        toc = TableOfContents()
+        toc.levelStyles = [h1, h2]
+
+        elements.append(Paragraph('Table of Contents', styleSheet["Header1Toc"]))
+        elements.append(Spacer(1, 1*inch))
+        elements.append(toc)
+        elements.append(PageBreak())
+
+    ############################################################################
+    # Creating the style sheet Template
+    ############################################################################
+    def add_more_styles(self):
 
         styleSheet.add(ParagraphStyle(name='Header1P',
                                       fontName=_baseFontNameB,
@@ -72,6 +139,20 @@ class PDFCreator:
                                       leading=12),
                        alias='H1p')
         
+        styleSheet.add(ParagraphStyle(name='Header1PS',
+                                      fontName=_baseFontNameB,
+                                      textColor=doc_color,
+                                      fontSize=26,
+                                      leading=12),
+                       alias='H1pS')
+
+        styleSheet.add(ParagraphStyle(name='Header1Toc',
+                                      fontName=_baseFontNameB,
+                                      textColor=doc_color,
+                                      fontSize=30,
+                                      leading=12),
+                       alias='H1t')
+
         styleSheet.add(ParagraphStyle(name='Header2P',
                                       fontName=_baseFontNameB,
                                       textColor=doc_color,
@@ -94,25 +175,17 @@ class PDFCreator:
                                       leading=12),
                        alias='BTT')
 
-        styleSheet.add(ParagraphStyle(name='Heading3P',
-                                      fontName=_baseFontName,
-                                      textColor=doc_color,
-                                      fontSize=16,
-                                      leading=12),
-                                      #parent=styleSheet['Normal'],
-                                      #fontName = _baseFontNameBI,
-                                      #fontSize=12,
-                                      #leading=14,
-                                      #spaceBefore=12,
-                                      #spaceAfter=6),
-                       alias='H3p')
-
         return
-    
-    # write the document to disk
-    def build_document(self):
-        doc.build(elements)
 
+    ############################################################################
+    # Build the document and write it to the disk 
+    ############################################################################
+    def build_document(self):
+        doc.multiBuild(elements, onFirstPage=myFirstPage, onLaterPages=myLaterPages)
+
+    ############################################################################
+    # Create the address map information
+    ############################################################################
     def create_addrmap_info(self, map_info_dict: dict):
         for key in map_info_dict:
             if key == "Name":
@@ -122,10 +195,10 @@ class PDFCreator:
                 elements.append(Paragraph(map_info_dict[key], styleSheet["BodyTextP"]))
                 elements.append(Spacer(0, 0.2*inch))
             elif key == "Base_address":
-                elements.append(Paragraph(('<b>Base Address : </b>' + map_info_dict[key]), 
+                elements.append(Paragraph(('<b>Base Address: </b>' + map_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
             elif key == "Size":
-                elements.append(Paragraph(('<b>Size(bytes) : </b>' + map_info_dict[key]), 
+                elements.append(Paragraph(('<b>Size(bytes): </b>' + map_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
                 elements.append(Spacer(0, 0.2*inch))
             else:
@@ -139,33 +212,40 @@ class PDFCreator:
         P_offset_header = Paragraph('<b>Offset</b>',styleSheet["BodyTextT"])    
         P_identifier_header = Paragraph('<b>Identifier</b>',styleSheet["BodyTextT"])    
         P_name_header = Paragraph('<b>Name</b>',styleSheet["BodyTextT"])    
+
+        # Clear any previous values
+        table_data_reg_list.clear()
+
         table_data_reg_list.append([P_offset_header, P_identifier_header, P_name_header])
 
+    ############################################################################
+    # Create the register information  
+    ############################################################################
     def create_register_info(self, reg_info_dict: dict):
         for key in reg_info_dict:
             if key == "Name":
                 tag_id = "<a name=\"" +  (reg_info_dict[key]).replace(" ","") + "\"/>"
                 dummy = "" # done so that the jump doesn't mask the required data
                 elements.append(Paragraph((tag_id + dummy), styleSheet["BodyTextP"]))
-                elements.append(Paragraph(reg_info_dict[key], styleSheet["H1p"]))
+                elements.append(Paragraph(reg_info_dict[key], styleSheet["H1pS"]))
                 elements.append(Spacer(0, 0.5*inch))
             elif key == "Desc":
                 elements.append(Paragraph(reg_info_dict[key], styleSheet["BodyTextP"]))
                 elements.append(Spacer(0, 0.2*inch))
             elif key == "Absolute_address":
-                elements.append(Paragraph(('<b>Absolute Address : \t</b>' + reg_info_dict[key]), 
+                elements.append(Paragraph(('<b>Absolute Address: </b>' + ('&nbsp;')*2 + reg_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
             elif key == "Base_offset":
-                elements.append(Paragraph(('<b>Base Offset : </b>' + reg_info_dict[key]), 
-                                    styleSheet["BodyTextP"]))
-            elif key == "Access":
-                elements.append(Paragraph(('<b>Access : </b>' + reg_info_dict[key]), 
+                elements.append(Paragraph(('<b>Base Offset: </b>' + ('&nbsp;')*13 + reg_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
             elif key == "Reset":
-                elements.append(Paragraph(('<b>Reset : </b>' + reg_info_dict[key]), 
+                elements.append(Paragraph(('<b>Reset: </b>' + ('&nbsp;')*23 + reg_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Access":
+                elements.append(Paragraph(('<b>Access: </b>' + ('&nbsp;')*20 + reg_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
             elif key == "Size":
-                elements.append(Paragraph(('<b>Size(bytes) : </b>' + reg_info_dict[key]), 
+                elements.append(Paragraph(('<b>Size(bytes): </b>' + ('&nbsp;')*14 + reg_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
                 elements.append(Spacer(0, 0.2*inch))
             else:
@@ -176,11 +256,11 @@ class PDFCreator:
         elements.append(Spacer(0, 0.4*inch))
 
         ## Actual Header data
-        P_offset_header = Paragraph('<b>Bits</b>',styleSheet["BodyTextT"])    
+        P_offset_header     = Paragraph('<b>Bits</b>',styleSheet["BodyTextT"])    
         P_identifier_header = Paragraph('<b>Identifier</b>',styleSheet["BodyTextT"])    
-        P_access_header = Paragraph('<b>Access</b>',styleSheet["BodyTextT"])    
-        P_reset_header = Paragraph('<b>Reset</b>',styleSheet["BodyTextT"])    
-        P_name_header = Paragraph('<b>Name / Description </b>',styleSheet["BodyTextT"])    
+        P_access_header     = Paragraph('<b>Access</b>',styleSheet["BodyTextT"])    
+        P_reset_header      = Paragraph('<b>Reset</b>',styleSheet["BodyTextT"])    
+        P_name_header       = Paragraph('<b>Name / Description </b>',styleSheet["BodyTextT"])    
 
 
         # Clear any previous values
@@ -192,46 +272,38 @@ class PDFCreator:
                                       P_reset_header,
                                       P_name_header])
 
-    ###
+    ############################################################################
     # Create the register's list info
-    ###
+    ############################################################################
     def create_reg_list_info(self, reg_info_dict: dict, is_reserved: bool):
 
+        # Offset
         P_offset = Paragraph(reg_info_dict['Offset'],styleSheet["BodyTextP"])    
 
+        # Identifier
         if is_reserved:
             P_identifier = Paragraph(reg_info_dict['Identifier'],styleSheet["BodyTextP"])    
         else:
-            # <a href=#"ID" color="blue"> Text </a>
-            link = "<a href=\"#" + (reg_info_dict['Name']).replace(" ","") + "\" color=\"blue\">"
+            # <a href="#ID" color="blue"> Text </a>
+            link = '<a href="#%s" color="blue">' % (reg_info_dict['Id'] + (reg_info_dict['Name']).replace(" ",""))
             P_identifier = Paragraph((link + reg_info_dict['Identifier'] + "</a>"),styleSheet["BodyTextP"])    
 
+        # Name
         P_name = Paragraph(reg_info_dict['Name'],styleSheet["BodyTextP"])    
 
         table_data_reg_list.append([P_offset, P_identifier, P_name])
 
-    ###
+    ############################################################################
     # Create the field's list info 
-    ###
+    ############################################################################
     def create_fields_list_info(self, field_info_dict: dict):
 
-        # Bits 
-        P_bits = Paragraph(field_info_dict['Bits'],styleSheet["BodyTextP"])    
-
-        # Identifier
+        P_bits       = Paragraph(field_info_dict['Bits'],styleSheet["BodyTextP"])    
         P_identifier = Paragraph(field_info_dict['Identifier'],styleSheet["BodyTextP"])    
-
-        # Access
-        P_access = Paragraph(field_info_dict['Access'],styleSheet["BodyTextP"])    
-
-        # Reset 
-        P_reset = Paragraph(field_info_dict['Reset'],styleSheet["BodyTextP"])    
-
-        # Name
-        P_name = Paragraph(field_info_dict['Name'],styleSheet["BodyTextP"])    
-
-        # Description
-        P_desc = Paragraph(field_info_dict['Description'],styleSheet["BodyTextP"])    
+        P_access     = Paragraph(field_info_dict['Access'],styleSheet["BodyTextP"])    
+        P_reset      = Paragraph(field_info_dict['Reset'],styleSheet["BodyTextP"])    
+        P_name       = Paragraph(field_info_dict['Name'],styleSheet["BodyTextP"])    
+        P_desc       = Paragraph(field_info_dict['Description'],styleSheet["BodyTextP"])    
 
         table_data_field_list.append([P_bits, 
                                       P_identifier, 
@@ -240,10 +312,9 @@ class PDFCreator:
                                       [P_name,P_desc],
                                       ])
 
-        # TODO: Give the the coloumn width for fields column
-        ##MSHA
-        #self.dump_field_list_info()
-
+    ############################################################################
+    # Used for dumping the registers table info into the pdf document 
+    ############################################################################
     def dump_reg_list_info(self):
 
         t=Table(table_data_reg_list,
@@ -254,45 +325,20 @@ class PDFCreator:
                     ('LINEABOVE',(0,1),(-1,1),1,colors.black),
                     ('BACKGROUND',(0,0),(-1,0),colors.HexColor(0xD9D9D9))
                     ])
-                            #('BOX',(0,0),(1,-1),2,colors.red),
-                            #('LINEBEFORE',(2,1),(2,-2),1,colors.blue),
-                            #('BOX',(0,0),(-1,-1),2,colors.black),
-                            #('GRID',(0,0),(-1,-1),0.5,colors.black),
-                            #('VALIGN',(3,0),(3,0),'BOTTOM'),
-                            #('BACKGROUND',(3,1),(3,1),colors.khaki),
-                            #('ALIGN',(3,1),(3,1),'CENTER'),
-                            #('BACKGROUND',(3,2),(3,2),colors.beige),
-                            #('ALIGN',(3,2),(3,2),'LEFT'),
-                            #])
 
-        # Table 1
         elements.append(t)
-
-        
-        #elements.append(Spacer(1, 1*inch))
-        #elements.append(Paragraph('<a name="SlaveSelectRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 1*inch))
-        #elements.append(Paragraph('<a name="MasterTriggerRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 1*inch))
-        #elements.append(Paragraph('<a name="ErrorAddressRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 1*inch))
-        #elements.append(Paragraph('<a name="StatusInformationRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 1*inch))
-        #elements.append(Paragraph('<a name="GlobalControlRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 1*inch))
-        #elements.append(Paragraph('<a name="ReceiveDataRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 1*inch))
-
-        # Space
         elements.append(Spacer(1, 1*inch))
         
         # Page break
         elements.append(PageBreak())
 
+    ############################################################################
+    # Used for dumping the fields table info into the pdf document
+    ############################################################################
     def dump_field_list_info(self):
 
         t=Table(table_data_field_list,
-                colWidths=[45,80,50,70,190],
+                colWidths=[45,80,50,83,192],
                 splitByRow=1,
                 repeatRows=1,
                 style=[
@@ -302,91 +348,9 @@ class PDFCreator:
                     ('ALIGN',(0,0),(-1,-1),'LEFT'),
                     ('VALIGN',(0,1),(-1,-1),'MIDDLE'),
                     ])
-                            #('BOX',(0,0),(1,-1),2,colors.red),
-                            #('LINEBEFORE',(2,1),(2,-2),1,colors.blue),
-                            #('BOX',(0,0),(-1,-1),2,colors.black),
-                            #('GRID',(0,0),(-1,-1),0.5,colors.black),
-                            #('VALIGN',(3,0),(3,0),'BOTTOM'),
-                            #('BACKGROUND',(3,1),(3,1),colors.khaki),
-                            #('ALIGN',(3,1),(3,1),'CENTER'),
-                            #('BACKGROUND',(3,2),(3,2),colors.beige),
-                            #('ALIGN',(3,2),(3,2),'LEFT'),
-                            #])
 
-        # Table 1
         elements.append(t)
-
-        #elements.append(Spacer(1, 7*inch))
-        #elements.append(Paragraph('<a name="SlaveSelectRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 7*inch))
-        #elements.append(Paragraph('<a name="MasterTriggerRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 7*inch))
-        #elements.append(Paragraph('<a name="ErrorAddressRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 7*inch))
-        #elements.append(Paragraph('<a name="StatusInformationRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 7*inch))
-        #elements.append(Paragraph('<a name="GlobalControlRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 7*inch))
-        #elements.append(Paragraph('<a name="ReceiveDataRegister"/>Link test', styleSheet["H2p"]))
-        #elements.append(Spacer(1, 7*inch))
-
-        # Space
         elements.append(Spacer(1, 1*inch))
 
         # Page break
         elements.append(PageBreak())
-
-    def creation(self):
-
-        # Image
-        I = Image('muneeb.jpg')
-        I.drawHeight = 1.25*inch*I.drawHeight / I.drawWidth
-        I.drawWidth = 1.25*inch
-
-        # Paragraphs
-        P0 = Paragraph('''
-        A paragraph
-        1''',
-        styleSheet["BodyText"])
-
-        P = Paragraph(''' The ReportLab Left
-        Logo
-        Image''',
-        styleSheet["BodyText"])
-
-        ## Some Info
-        elements.append(P0)
-        elements.append(P)
-
-        ## Actual data
-        data= [['A', 'B', 'C', P0, 'D'],
-               ['00', '01', '02', [I,P], '04'],
-               ['10', '11', '12', [P,I], '14'],
-               ['20', '21', '22', '23', '24'],
-               ['30', '31', '32', '33', '34'],
-               ['40', '41', '42', '43', '44']]
-
-        t=Table(data,style=[('GRID',(1,1),(-2,-2),1,colors.green),
-                            ('BOX',(0,0),(1,-1),2,colors.red),
-                            ('LINEABOVE',(1,2),(-2,2),1,colors.blue),
-                            ('LINEBEFORE',(2,1),(2,-2),1,colors.pink),
-                            ('BACKGROUND', (0, 0), (0, 1), colors.pink),
-                            ('BACKGROUND', (1, 1), (1, 2), colors.lavender),
-                            ('BACKGROUND', (2, 2), (2, 3), colors.orange),
-                            ('BOX',(0,0),(-1,-1),2,colors.black),
-                            ('GRID',(0,0),(-1,-1),0.5,colors.black),
-                            ('VALIGN',(3,0),(3,0),'BOTTOM'),
-                            ('BACKGROUND',(3,0),(3,0),colors.limegreen),
-                            ('BACKGROUND',(3,1),(3,1),colors.khaki),
-                            ('ALIGN',(3,1),(3,1),'CENTER'),
-                            ('BACKGROUND',(3,2),(3,2),colors.beige),
-                            ('ALIGN',(3,2),(3,2),'LEFT'),
-                            ])
-        #t._argW[3]=1.5*inch
-
-        # Table 1
-        elements.append(t)
-
-        # Space
-        elements.append(Spacer(1, 1*inch))
-        elements.append(t)

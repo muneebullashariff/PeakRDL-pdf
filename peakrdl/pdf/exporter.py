@@ -1,3 +1,4 @@
+import sys
 import os
 import re
 import datetime
@@ -54,6 +55,9 @@ class PDFExporter:
         # Get the current time (hh:mm:ss)
         self.current_time = time.strftime('%H:%M:%S') 
 
+        # Create the global variable for pdf creation
+        global pdf_create
+
     def set_address_width(self, node: Node):
         self.address_width = self.get_address_width(node)
 
@@ -62,13 +66,13 @@ class PDFExporter:
         amap = node.owning_addrmap
         self.base_address = amap.get_property("base_address_p", default=0x0);
 
-    def export(self, node: Node, path: str, **kwargs):
+    def export(self, node_list: list, path: str, **kwargs):
         """
         Perform the export!
 
         Parameters
         ----------
-        node: systemrdl.Node
+        node_list: List of systemrdl.Node(s)
             Top-level node to export. Can be the top-level `RootNode` or any
             internal `AddrmapNode`.
 
@@ -87,148 +91,126 @@ class PDFExporter:
         if kwargs:
             raise TypeError("got an unexpected keyword argument '%s'" % list(kwargs.keys())[0])
 
+        # Call the method for initiating the document creation
+        self.generate_output_pdf(node_list, path)
 
-        ## If it is the root node, skip to top addrmap
-        #if isinstance(node, RootNode):
-        #    node = node.top
-        #self.top = node
-
-        ## First, traverse the model and collect some information
-        #self.bus_width_db = {}
-        #RDLWalker().walk(self.top, PreExportListener(self))
-
-
-        #context = {
-        #    'top_node': node,
-        #    'RegNode': RegNode,
-        #    'RegfileNode': RegfileNode,
-        #    'AddrmapNode': AddrmapNode,
-        #    'MemNode': MemNode,
-        #    'AddressableNode': AddressableNode,
-        #    'isinstance': isinstance,
-        #    'class_needs_definition': self.class_needs_definition,
-        #    'get_class_name': self.get_class_name,
-        #    'get_class_friendly_name': self.get_class_friendly_name,
-        #    'get_inst_name': self.get_inst_name,
-        #    'is_field_reserved': self.is_field_reserved,
-        #    'get_inst_map_name': self.get_inst_map_name,
-        #    'get_field_access': self.get_field_access,
-        #    'get_reg_access': self.get_reg_access,
-        #    'get_address_width': self.get_address_width,
-        #    'get_base_address': self.get_base_address,
-        #    'get_array_address_offset_expr': self.get_array_address_offset_expr,
-        #    'get_endianness': self.get_endianness,
-        #    'get_bus_width': self.get_bus_width,
-        #    'get_mem_access': self.get_mem_access,
-        #    'roundup_to': self.roundup_to,
-        #    'roundup_pow2': self.roundup_pow2,
-        #    'get_today_date': self.today_date,
-        #    'get_current_time': self.current_time
-        #}
-
-        self.generate_output_pdf(node, path)
-
-    ###
+    #####################################################################
     # Generate the output pdf files
-    ###
-    def generate_output_pdf(self, root: RootNode, path: str):
+    #####################################################################
+    def generate_output_pdf(self, root_list: list, path: str):
 
         # Create the object
-        pdf_create = PDFCreator(path)
+        self.pdf_create = PDFCreator(path)
 
-        for node in root.descendants(in_post_order=True):
-            # Traverse all the address maps
-            if isinstance(node, AddrmapNode):
-                addrmap_strg = {}
-                # set the required variable 
-                self.set_address_width(node)
-                self.set_base_address(node)
+        # Go through multiple input files 
+        # root_list is elaborated output of input .rdl file(s)
+        for root_id, root in enumerate(root_list):
+            for node in root.descendants(in_post_order=True):
 
-                addrmap_strg['Name'] = self.get_name(node)
-                addrmap_strg['Desc'] = self.get_desc(node)
-                addrmap_strg['Base_address'] = self.get_base_address(node)
-                addrmap_strg['Size'] = self.get_addrmap_size(node)
-                pdf_create.create_addrmap_info(addrmap_strg)
+                # Traverse all the address maps
+                if isinstance(node, AddrmapNode):
+                    self.create_regmap_list(node, root_id)
+                    self.create_regmap_registers_info(node, root_id)
 
-                # Create a list of all registers for the map
-                for reg_id, reg in enumerate(node.registers()):
-                    addrmap_reg_list_strg = {}
-                    
-                    # Reserved addresses at the start of the address map
-                    if reg_id == 0 and reg.address_offset != 0:
-                        addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset-1)
-                        addrmap_reg_list_strg['Identifier'] = "-" 
-                        addrmap_reg_list_strg['Name']       = "-"
-                        pdf_create.create_reg_list_info(addrmap_reg_list_strg, 1)
-                    # Reserved addresses in between the address map
-                    elif (reg_id != 0) and (reg_previous.address_offset + reg_previous.total_size) < reg.address_offset:
-                        index = 0
-                        while((reg_previous.address_offset + reg_previous.total_size + index) < reg.address_offset):
-                            addrmap_reg_list_strg['Offset']     = self.format_address(reg_previous.address_offset + reg_previous.total_size + index)
-                            addrmap_reg_list_strg['Identifier'] = "-" 
-                            addrmap_reg_list_strg['Name']       = "-"
-                            pdf_create.create_reg_list_info(addrmap_reg_list_strg, 1)
-                            index = index + reg.total_size
+            # Dump all the data into the pdf file 
+            self.pdf_create.build_document()
 
-                    # Normal registers in the address map
-                    addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset) 
-                    addrmap_reg_list_strg['Identifier'] = self.get_inst_name(reg)
-                    addrmap_reg_list_strg['Name']       = self.get_name(reg)
-                    pdf_create.create_reg_list_info(addrmap_reg_list_strg, 0)
+    #####################################################################
+    # Create the regmap list for all regiters
+    #####################################################################
+    def create_regmap_list(self, node: AddrmapNode, root_id: int): 
+        addrmap_strg = {}
+        # set the required variable 
+        self.set_address_width(node)
+        self.set_base_address(node)
 
-                    # Store previous item
-                    reg_previous = reg
+        addrmap_strg['Name'] = "%s %s" % ((root_id+1),self.get_name(node))
+        addrmap_strg['Desc'] = self.get_desc(node)
+        addrmap_strg['Base_address'] = self.get_base_address(node)
+        addrmap_strg['Size'] = self.get_addrmap_size(node)
+        self.pdf_create.create_addrmap_info(addrmap_strg)
 
-                pdf_create.dump_reg_list_info()
+        # Create a list of all registers for the map
+        for reg_id, reg in enumerate(node.registers()):
+            addrmap_reg_list_strg = {}
+            
+            # Reserved addresses at the start of the address map
+            if reg_id == 0 and reg.address_offset != 0:
+                addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset-1)
+                addrmap_reg_list_strg['Identifier'] = "-" 
+                addrmap_reg_list_strg['Name']       = "-"
+                self.pdf_create.create_reg_list_info(addrmap_reg_list_strg, 1)
+            # Reserved addresses in between the address map
+            elif (reg_id != 0) and (reg_previous.address_offset + reg_previous.total_size) < reg.address_offset:
+                index = 0
+                while((reg_previous.address_offset + reg_previous.total_size + index) < reg.address_offset):
+                    addrmap_reg_list_strg['Offset']     = self.format_address(reg_previous.address_offset + reg_previous.total_size + index)
+                    addrmap_reg_list_strg['Identifier'] = "-" 
+                    addrmap_reg_list_strg['Name']       = "-"
+                    self.pdf_create.create_reg_list_info(addrmap_reg_list_strg, 1)
+                    index = index + reg.total_size
 
-                # Traverse all the registers for separate register(s) section
-                for reg_id, reg in enumerate(node.registers()):
-                    registers_strg = {}
-                    registers_strg['Name'] = self.get_name(reg)
-                    registers_strg['Desc'] = self.get_desc(reg)
-                    registers_strg['Absolute_address'] = self.get_reg_absolute_address(reg)
-                    registers_strg['Base_offset'] = self.get_reg_offset(reg)
-                    registers_strg['Access'] = self.get_reg_access(reg)
-                    registers_strg['Reset'] = self.get_reg_reset(reg)
-                    registers_strg['Size'] = self.get_reg_size(reg)
+            # Normal registers in the address map
+            addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset) 
+            addrmap_reg_list_strg['Identifier'] = self.get_inst_name(reg)
+            addrmap_reg_list_strg['Id']         = "%s.%s" % ((root_id+1),(reg_id+1))
+            addrmap_reg_list_strg['Name']       = self.get_name(reg)
+            self.pdf_create.create_reg_list_info(addrmap_reg_list_strg, 0)
 
-                    pdf_create.create_register_info(registers_strg)
+            # Store previous item
+            reg_previous = reg
 
-                    # Reverse the fields order - MSB first
-                    fields_list = []
-                    for field in reg.fields():
-                        if isinstance(field, FieldNode):
-                            fields_list.append(field)
+        self.pdf_create.dump_reg_list_info()
 
-                    fields_list.reverse()
+    #####################################################################
+    # Create the regiters info
+    #####################################################################
+    def create_regmap_registers_info(self, node: AddrmapNode, root_id: int): 
+        # Traverse all the registers for separate register(s) section
+        for reg_id, reg in enumerate(node.registers()):
+            registers_strg = {}
+            registers_strg['Name'] = "%s.%s %s" % ((root_id+1),(reg_id+1),self.get_name(reg))
+            registers_strg['Desc'] = self.get_desc(reg)
+            registers_strg['Absolute_address'] = self.get_reg_absolute_address(reg)
+            registers_strg['Base_offset'] = self.get_reg_offset(reg)
+            registers_strg['Reset'] = self.get_reg_reset(reg)
+            registers_strg['Access'] = self.get_reg_access(reg)
+            registers_strg['Size'] = self.get_reg_size(reg)
 
-                    # Traverse all the fields
-                    for field in fields_list:
-                        fields_list_strg = {}
-                        fields_list_strg['Bits']        = self.get_field_bits(field)
-                        fields_list_strg['Identifier']  = self.get_inst_name(field)
-                        fields_list_strg['Access']      = self.get_field_access(field)
-                        fields_list_strg['Reset']       = self.get_field_reset(field)
-                        fields_list_strg['Name']        = self.get_name(field)
-                        fields_list_strg['Description'] = self.get_desc(field)
+            self.pdf_create.create_register_info(registers_strg)
 
-                        pdf_create.create_fields_list_info(fields_list_strg)
+            # Reverse the fields order - MSB first
+            fields_list = []
+            for field in reg.fields():
+                if isinstance(field, FieldNode):
+                    fields_list.append(field)
 
-                    pdf_create.dump_field_list_info()
+            fields_list.reverse()
 
+            # Traverse all the fields
+            for field in fields_list:
+                fields_list_strg = {}
+                fields_list_strg['Bits']        = self.get_field_bits(field)
+                fields_list_strg['Identifier']  = self.get_inst_name(field)
+                fields_list_strg['Access']      = self.get_field_access(field)
+                fields_list_strg['Reset']       = self.get_field_reset(field)
+                fields_list_strg['Name']        = self.get_name(field)
+                fields_list_strg['Description'] = self.get_desc(field)
 
-        # Display the contents
-        for k in addrmap_strg:
-            print(k)
-        
-        pdf_create.build_document()
+                self.pdf_create.create_fields_list_info(fields_list_strg)
 
+            self.pdf_create.dump_field_list_info()
+
+    #####################################################################
+    # Below methods are used for getting the required data from
+    # the elaborated object
+    #####################################################################
     def get_name(self, node: Node) -> str:
         s = node.get_property("name")
         return s
 
     def get_desc(self, node: Node) -> str:
-        s = (node.get_property("desc")).replace("\n"," ")
+        s = (node.get_property("desc", default="")).replace("\n"," ")
         return s
 
     def get_addrmap_size(self, node: Node) -> str:
@@ -264,15 +246,20 @@ class PDFExporter:
         Returns the address map name
         """
 
+        # Default value
+        amap_name = "reg_map";
+
+        # Check if the udp is defined
+        is_defined = self.check_udp("map_name_p", node)
+        
+        if not is_defined:
+            return amap_name
+   
+        # Get the upd value 
         amap = node.owning_addrmap
-        amap_name = amap.get_property("map_name_p");
+        amap_name = amap.get_property("map_name_p", default=amap_name);
 
-        if amap_name:
-            amap_name = amap_name.upper()
-        else:
-            amap_name = "reg_map"
-
-        return amap_name
+        return amap_name.upper()
 
     def get_field_bits(self, field: FieldNode) -> str:
         """
@@ -414,12 +401,19 @@ class PDFExporter:
         Get register's access for the map
         """
 
-        regaccess = node.get_property("regaccess_p")
+        # Default value
+        regaccess = "RW";
 
-        if regaccess:
+        # Check if the udp is defined
+        is_defined = self.check_udp("regaccess_p", node)
+        
+        if not is_defined:
             return regaccess
-        else:
-            return "RW"
+   
+        # Get the upd value 
+        regaccess = node.get_property("regaccess_p", default=regaccess)
+
+        return regaccess
 
     def get_reg_reset(self, node: RegNode) -> str:
         """
@@ -464,39 +458,60 @@ class PDFExporter:
 
         return (hex(node.total_size))
 
+    def check_udp(self, prop_name: str, node: Node) -> bool:
+        """
+        Checks if the property name is a udp
+        """
+
+        prop_ups = node.list_properties(include_native=False, include_udp=True)
+
+        if prop_name in prop_ups:
+            return True
+        else:
+            return False
+
     def get_address_width(self, node: Node) -> str:
         """
         Returns the address width for the register access
         """
 
+        # Default value
+        address_width = 32;
+
         amap = node.owning_addrmap
-        address_width = amap.get_property("address_width_p");
+
+        # Check if the udp is defined
+        is_defined = self.check_udp("address_width_p", node)
+        
+        if not is_defined:
+            return address_width
+   
+        # Get the upd value 
+        address_width = amap.get_property("address_width_p", default=address_width);
     
-        if address_width:
-            # Convert it to decimal value
-            address_width = int(address_width)
-        else: 
-            # Default value
-            address_width = 32;
-    
-        return address_width 
+        return (int(address_width)) 
 
     def get_base_address(self, node: Node) -> str:
         """
         Returns the base address for the register block 
         """
-        
+       
+        # Default value 
+        base_address = 0x0
+
         # Get the property value
         amap = node.owning_addrmap
-        base_address = amap.get_property("base_address_p");
 
-        # Get the formatted base_address
-        if base_address:
-            base_address = self.format_address(base_address)
-        else:
-            base_address = self.format_address(0)
+        # Check if the udp is defined
+        is_defined = self.check_udp("base_address_p", node)
+        
+        if not is_defined:
+            return (self.format_address(base_address)) 
 
-        return base_address 
+        # Get the value
+        base_address = amap.get_property("base_address_p", default=base_address);
+
+        return (self.format_address(base_address)) 
 
     def format_address(self, address: str) -> str:
 
