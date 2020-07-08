@@ -318,6 +318,7 @@ class PDFCreator:
     def dump_reg_list_info(self):
 
         t=Table(table_data_reg_list,
+                colWidths=[120,120,200],
                 splitByRow=1,
                 repeatRows=1,
                 style=[
