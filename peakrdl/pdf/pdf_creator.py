@@ -328,7 +328,7 @@ class PDFCreator:
                     ])
 
         elements.append(t)
-        elements.append(Spacer(1, 1*inch))
+        #elements.append(Spacer(1, 1*inch))
         
         # Page break
         elements.append(PageBreak())
@@ -351,7 +351,7 @@ class PDFCreator:
                     ])
 
         elements.append(t)
-        elements.append(Spacer(1, 1*inch))
+        #elements.append(Spacer(1, 1*inch))
 
         # Page break
         elements.append(PageBreak())
