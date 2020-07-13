@@ -12,5 +12,3 @@
 
   // Map name for creation
   property map_name_p { type = string; component = addrmap; default = "reg_map";};
-
-  // Coverage property
