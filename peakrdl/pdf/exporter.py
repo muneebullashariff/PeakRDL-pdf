@@ -114,6 +114,7 @@ class PDFExporter:
 
             # Dump all the data into the pdf file 
             self.pdf_create.build_document()
+            print("[%d%%]" % (float(root_id+1)*100/len(root_list)))
 
     #####################################################################
     # Create the regmap list for all regiters
