@@ -137,19 +137,34 @@ class PDFExporter:
             
             # Reserved addresses at the start of the address map
             if reg_id == 0 and reg.address_offset != 0:
-                addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset-1)
+                offset_range = "%s till %s" % ((self.format_address(0)),self.format_address(reg.address_offset-1))
+                addrmap_reg_list_strg['Offset']     = offset_range 
                 addrmap_reg_list_strg['Identifier'] = "-" 
                 addrmap_reg_list_strg['Name']       = "-"
                 self.pdf_create.create_reg_list_info(addrmap_reg_list_strg, 1)
-            # Reserved addresses in between the address map
+
+            # Reserved addresses in between the address map - for single space
+            elif (reg_id != 0) and (reg_previous.address_offset + 2*reg_previous.total_size) == reg.address_offset:
+                addrmap_reg_list_strg['Offset']     = self.format_address(reg_previous.address_offset + reg_previous.total_size)
+                addrmap_reg_list_strg['Identifier'] = "-" 
+                addrmap_reg_list_strg['Name']       = "-"
+                self.pdf_create.create_reg_list_info(addrmap_reg_list_strg, 1)
+
+            # Reserved addresses in between the address map - for a range fo free spaces
             elif (reg_id != 0) and (reg_previous.address_offset + reg_previous.total_size) < reg.address_offset:
+                start_addr = reg_previous.address_offset + reg_previous.total_size
+
                 index = 0
                 while((reg_previous.address_offset + reg_previous.total_size + index) < reg.address_offset):
-                    addrmap_reg_list_strg['Offset']     = self.format_address(reg_previous.address_offset + reg_previous.total_size + index)
-                    addrmap_reg_list_strg['Identifier'] = "-" 
-                    addrmap_reg_list_strg['Name']       = "-"
-                    self.pdf_create.create_reg_list_info(addrmap_reg_list_strg, 1)
                     index = index + reg.total_size
+                    
+                end_addr = reg_previous.address_offset + reg_previous.total_size + index
+
+                offset_range = "%s till %s" % ((self.format_address(start_addr)),self.format_address(end_addr-1))
+                addrmap_reg_list_strg['Offset']     = offset_range 
+                addrmap_reg_list_strg['Identifier'] = "-" 
+                addrmap_reg_list_strg['Name']       = "-"
+                self.pdf_create.create_reg_list_info(addrmap_reg_list_strg, 1)
 
             # Normal registers in the address map
             addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset) 
