@@ -170,7 +170,7 @@ class PDFExporter:
             addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset) 
             addrmap_reg_list_strg['Identifier'] = self.get_inst_name(reg)
             addrmap_reg_list_strg['Id']         = "%s.%s" % ((root_id+1),(reg_id+1))
-            addrmap_reg_list_strg['Name']       = self.get_name(reg)
+            addrmap_reg_list_strg['Name']       = self.get_inst_name(reg)
             self.pdf_create.create_reg_list_info(addrmap_reg_list_strg, 0)
 
             # Store previous item
@@ -185,8 +185,9 @@ class PDFExporter:
         # Traverse all the registers for separate register(s) section
         for reg_id, reg in enumerate(node.registers()):
             registers_strg = {}
-            registers_strg['Name'] = "%s.%s %s" % ((root_id+1),(reg_id+1),self.get_name(reg))
-            registers_strg['Desc'] = self.get_desc(reg)
+            registers_strg['Name'] = "%s.%s %s" % ((root_id+1),(reg_id+1),self.get_inst_name(reg))
+            registers_strg['Desc1'] = self.get_name(reg)
+            registers_strg['Desc2'] = self.get_desc(reg)
             registers_strg['Absolute_address'] = self.get_reg_absolute_address(reg)
             registers_strg['Base_offset'] = self.get_reg_offset(reg)
             registers_strg['Reset'] = self.get_reg_reset(reg)

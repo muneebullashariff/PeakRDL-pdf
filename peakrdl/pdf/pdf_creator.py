@@ -229,7 +229,10 @@ class PDFCreator:
                 elements.append(Paragraph((tag_id + dummy), styleSheet["BodyTextP"]))
                 elements.append(Paragraph(reg_info_dict[key], styleSheet["H1pS"]))
                 elements.append(Spacer(0, 0.5*inch))
-            elif key == "Desc":
+            elif key == "Desc1":
+                elements.append(Paragraph(reg_info_dict[key], styleSheet["BodyTextP"]))
+                elements.append(Spacer(0, 0.2*inch))
+            elif key == "Desc2":
                 elements.append(Paragraph(reg_info_dict[key], styleSheet["BodyTextP"]))
                 elements.append(Spacer(0, 0.2*inch))
             elif key == "Absolute_address":
