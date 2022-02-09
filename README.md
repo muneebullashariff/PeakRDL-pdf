@@ -6,8 +6,9 @@ mkdir path_to_folder
 cd path_to_folder  
 git clone https://github.com/muneebullashariff/PeakRDL-pdf.git  
 cd to PeakRDL-pdf   
-pip install -e .      
+pip3 install -e .      
 
+pip3 install reportlab
 
 Advantages of this approach are:  
 1 - You can install package in your home projects directory.   
