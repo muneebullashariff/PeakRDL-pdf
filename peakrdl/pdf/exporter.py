@@ -494,7 +494,7 @@ class PDFExporter:
         """
 
         # Default value
-        address_width = 32;
+        address_width = 32; #change addrwidth heres
 
         amap = node.owning_addrmap
 
@@ -539,8 +539,11 @@ class PDFExporter:
         if no_of_nib == 16:
             format_number = no_of_nib + 3
         # 32bit address     
+        elif no_of_nib == 8:
+            format_number = no_of_nib + 1
+        # 8bit address     
         else:
-            format_number = no_of_nib +1
+            format_number = no_of_nib
 
         # format the string to have underscore in hex value
         format_str = '{:0' + str(int(format_number)) + '_x}'
