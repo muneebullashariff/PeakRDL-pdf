@@ -3,7 +3,9 @@ import os
 import re
 import datetime
 import time
-
+import hashlib
+import operator
+import math
 from systemrdl.node import RootNode, Node, RegNode, AddrmapNode, RegfileNode
 from systemrdl.node import FieldNode, MemNode, AddressableNode
 from systemrdl.rdltypes import AccessType, OnReadType, OnWriteType
@@ -11,6 +13,23 @@ from systemrdl import RDLWalker
 
 from .pdf_creator import PDFCreator
 from .pre_export_listener import PreExportListener
+
+from typing import Any, Optional, Tuple, List, Dict, Union
+from collections import OrderedDict
+from .search_indexer import SearchIndexer
+from systemrdl.component import Component
+
+class BigInt:
+    def __init__(self, v: int):
+        self.v = v
+
+def get_node_uid(node: Node) -> str:
+    """
+    Returns the node's UID string
+    """
+    node_path = node.get_path(array_suffix="", empty_array_suffix="")
+    path_hash = hashlib.sha1(node_path.encode('utf-8')).hexdigest()
+    return path_hash
 
 class PDFExporter:
     
@@ -55,6 +74,11 @@ class PDFExporter:
         # Get the current time (hh:mm:ss)
         self.current_time = time.strftime('%H:%M:%S') 
 
+        self.RALData = [] # type: List[Dict[str, Any]]
+        self.RootNodeIds = [] # type: List[int]
+        self.current_id = -1
+        self.indexer = None # type: SearchIndexer
+
         # Create the global variable for pdf creation
         global pdf_create
 
@@ -66,7 +90,7 @@ class PDFExporter:
         amap = node.owning_addrmap
         self.base_address = amap.get_property("base_address_p", default=0x0);
 
-    def export(self, node_list: list, path: str, **kwargs):
+    def export(self, nodes: 'Union[Node, List[Node]]', path: str, **kwargs):
         """
         Perform the export!
 
@@ -85,14 +109,46 @@ class PDFExporter:
             if False, all the instance names will be in lowercase
         """
 
+        if not isinstance(nodes, list):
+            nodes = [nodes]
+
+        # If it is the root node, skip to top addrmap
+        for i, node in enumerate(nodes):
+            if isinstance(node, RootNode):
+                nodes[i] = node.top
+
+        self.RALData = []
+        self.current_id = -1
+        self.indexer = SearchIndexer()
+
         self.use_uppercase_inst_name = kwargs.pop("use_uppercase_inst_name", True)
+
+        self.skip_not_present = kwargs.pop("skip_not_present", True) # type: ignore
 
         # Check for stray kwargs
         if kwargs:
             raise TypeError("got an unexpected keyword argument '%s'" % list(kwargs.keys())[0])
 
+        self.pdf_create = PDFCreator(path)
+
+
+        # Traverse trees
+        for node in nodes:
+            if node.get_property('bridge'):
+                node.env.msg.warning(
+                    "HTML generator does not have proper support for bridge addmaps yet. The 'bridge' property will be ignored.",
+                    node.inst.property_src_ref.get('bridge', node.inst.inst_src_ref)
+                )
+            uid = get_node_uid(node)
+            #print(uid)
+            self.visit_addressable_node(node)
+
+
         # Call the method for initiating the document creation
-        self.generate_output_pdf(node_list, path)
+        #self.generate_output_pdf(nodes, path)
+        self.create_regfile_list(node,0)
+
+        self.pdf_create.build_document()
 
     #####################################################################
     # Generate the output pdf files
@@ -112,23 +168,170 @@ class PDFExporter:
                     self.create_regmap_list(node, root_id)
                     self.create_regmap_registers_info(node, root_id)
 
+        # Dump all the data into the pdf file 
             # Dump all the data into the pdf file 
-            self.pdf_create.build_document()
-            print("[%d%%]" % (float(root_id+1)*100/len(root_list)))
+        # Dump all the data into the pdf file 
+            # Dump all the data into the pdf file 
+        # Dump all the data into the pdf file 
+        self.pdf_create.build_document()
+
+
+    #####################################################################
+    # Create the nodes list
+    #####################################################################
+    def visit_addressable_node(self, node: Node, parent_id: 'Optional[int]'=None) -> int:
+        self.current_id += 1
+        this_id = self.current_id
+        child_ids = [] # type: List[int]
+
+        self.indexer.add_node(node, this_id)
+
+        ral_entry = {
+            'parent'    : parent_id,
+            'children'  : child_ids,
+            'name'      : node.inst.inst_name,
+            'offset'    : BigInt(node.inst.addr_offset),
+            'size'      : BigInt(node.size),
+        }
+        if node.inst.is_array:
+            ral_entry['dims'] = node.inst.array_dimensions
+            ral_entry['stride'] = BigInt(node.inst.array_stride)
+            ral_entry['idxs'] = [0] * len(node.inst.array_dimensions)
+
+        if isinstance(node, RegNode):
+            ral_fields = []
+            for i, field in enumerate(node.fields(skip_not_present=self.skip_not_present)):
+                self.indexer.add_node(field, this_id, i)
+
+                field_reset = field.get_property("reset", default=0)
+                if isinstance(field_reset, Node):
+                    # Reset value is a reference. Dynamic RAL data does not
+                    # support this, so stuff a 0 in its place
+                    field_reset = 0
+
+                ral_field = {
+                    'name' : field.inst.inst_name,
+                    'lsb'  : field.inst.lsb,
+                    'msb'  : field.inst.msb,
+                    'reset': BigInt(field_reset),
+                    'disp' : 'H'
+                }
+
+                field_enum = field.get_property("encode")
+                if field_enum is not None:
+                    ral_field['encode'] = True
+                    ral_field['disp'] = 'E'
+
+                ral_fields.append(ral_field)
+
+            ral_entry['fields'] = ral_fields
+
+        # Insert entry now to ensure proper position in list
+        self.RALData.append(ral_entry)
+
+        # Insert root nodes to list
+        if parent_id is None:
+            self.RootNodeIds.append(this_id)
+
+        # Recurse to children
+        children = OrderedDict()
+        for child in node.children(skip_not_present=self.skip_not_present):
+            if not isinstance(child, AddressableNode):
+                continue
+            child_id = self.visit_addressable_node(child, this_id)
+            child_ids.append(child_id)
+            children[child_id] = child
+            
+
+        # Generate page for this node
+        #self.create_regfile_list(this_id, node, children)
+        #self.create_regmap_list(node, 0)
+        #self.create_regmap_registers_info(node, 0)
+        #print(this_id)
+        return this_id
+
+  
+
+    #####################################################################
+    # Create the regfile list for all regiters
+    #####################################################################
+    def create_regfile_list(self, node: Node, root_id: int): 
+        regfile_map_strg = {}
+        regfile_map_strg['Name'] = "%s %s" % ((root_id+1),self.get_name(node))
+        regfile_map_strg['Absolute_address'] = self.get_reg_absolute_address(node)
+        regfile_map_strg['Base_offset'] = self.get_reg_offset(node)
+        regfile_map_strg['Size'] = self.get_addrmap_size(node)
+        regfile_map_strg['Desc'] = self.get_desc(node)
+
+        self.pdf_create.create_regfile_info(regfile_map_strg)
+
+        #print(node.__dict__)
+        #print(node.inst)
+        for regfile_id, regfile in enumerate(node.children()):
+            regfile_list_strg = {}
+
+            child_name = self.get_inst_name(regfile)
+            #print(self.get_inst_name(regfile))
+
+            child = node.get_child_by_name(child_name)
+            #print(self.get_child_addr_digits(regfile))
+            #print(regfile.inst.addr_offset)
+
+            # Reserved addresses at the start of the address map
+            if regfile_id == 0 and regfile.inst.addr_offset != 0:
+                offset_range = "%s till %s" % ((self.format_address(0)),self.format_address(regfile.inst.addr_offset-1))
+                regfile_list_strg['Offset']     = offset_range 
+                regfile_list_strg['Identifier'] = "-" 
+                regfile_list_strg['Name']       = "-"
+                self.pdf_create.create_reg_list_info(regfile_list_strg, 1)
+                #print(offset_range)
+            # Reserved addresses in between the address map - for single space
+            elif (regfile_id != 0) and (regfile_previous.inst.addr_offset + 2*regfile_previous.total_size) == regfile.inst.addr_offset:
+                regfile_list_strg['Offset']     = self.format_address(regfile_previous.inst.addr_offset + regfile_previous.total_size)
+                regfile_list_strg['Identifier'] = "-" 
+                regfile_list_strg['Name']       = "-"
+                self.pdf_create.create_reg_list_info(regfile_list_strg, 1)
+
+            # Reserved addresses in between the address map - for a range fo free spaces
+            elif (regfile_id != 0) and (regfile_previous.inst.addr_offset + regfile_previous.total_size) < regfile.inst.addr_offset:
+                start_addr = regfile_previous.inst.addr_offset + regfile_previous.total_size
+
+                index = 0
+                while((regfile_previous.inst.addr_offset + regfile_previous.total_size + index) < regfile.inst.addr_offset):
+                    index = index + regfile.total_size
+                    
+                end_addr = regfile_previous.inst.addr_offset + regfile_previous.total_size + index
+
+                offset_range = "%s till %s" % ((self.format_address(start_addr)),self.format_address(end_addr-1))
+                regfile_list_strg['Offset']     = offset_range 
+                regfile_list_strg['Identifier'] = "-" 
+                regfile_list_strg['Name']       = "-"
+                self.pdf_create.create_reg_list_info(regfile_list_strg, 1)
+
+            # Normal registers in the address map
+            regfile_list_strg['Offset']     = self.format_address(regfile.inst.addr_offset) 
+            regfile_list_strg['Identifier'] = self.get_inst_name(regfile)
+            regfile_list_strg['Id']         = "%s.%s" % ((root_id+1),(regfile_id+1))
+            regfile_list_strg['Name']       = self.get_inst_name(regfile)
+            self.pdf_create.create_regfile_list_info(regfile_list_strg, 0)
+
+            regfile_previous = regfile
+        
+        self.pdf_create.dump_regfile_list_info()
 
     #####################################################################
     # Create the regmap list for all regiters
     #####################################################################
-    def create_regmap_list(self, node: AddrmapNode, root_id: int): 
+    def create_regmap_list(self, node: Node, root_id: int): 
         addrmap_strg = {}
         # set the required variable 
         self.set_address_width(node)
         self.set_base_address(node)
 
         addrmap_strg['Name'] = "%s %s" % ((root_id+1),self.get_name(node))
-        addrmap_strg['Desc'] = self.get_desc(node)
         addrmap_strg['Base_address'] = self.get_base_address(node)
         addrmap_strg['Size'] = self.get_addrmap_size(node)
+        addrmap_strg['Desc'] = self.get_desc(node)
         self.pdf_create.create_addrmap_info(addrmap_strg)
 
         # Create a list of all registers for the map
@@ -245,6 +448,9 @@ class PDFExporter:
             return node.inst_name.upper()
         else:
             return node.inst_name.lower()
+
+    def get_child_addr_digits(self, node: AddressableNode) -> int:
+        return math.ceil(math.log2(node.size) / 4)
 
     def is_field_reserved(self, field: FieldNode) -> bool:
         """

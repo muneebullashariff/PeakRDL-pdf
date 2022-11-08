@@ -77,7 +77,7 @@ class PDFCreator:
 
         # Define variables used during creation
         global doc, elements, styleSheet, doc_color
-        global table_data_reg_list, table_data_field_list, toc
+        global table_data_regfile_list,table_data_reg_list, table_data_field_list, toc
 
         # Create the document
         doc = MySimpleDocTemplate(output_file, pagesize=A4)
@@ -86,6 +86,7 @@ class PDFCreator:
         elements = []
 
         ## Table data
+        table_data_regfile_list = []
         table_data_reg_list = []
         table_data_field_list = []
 
@@ -184,6 +185,42 @@ class PDFCreator:
         doc.multiBuild(elements, onFirstPage=myFirstPage, onLaterPages=myLaterPages)
 
     ############################################################################
+    # Create the regfile map information
+    ############################################################################
+    def create_regfile_info(self, map_info_dict: dict):
+        for key in map_info_dict:
+            if key == "Name":
+                elements.append(Paragraph(map_info_dict[key], styleSheet["H1p"]))
+                elements.append(Spacer(0, 0.5*inch))
+            elif key == "Desc":
+                elements.append(Paragraph(map_info_dict[key], styleSheet["BodyTextP"]))
+                elements.append(Spacer(0, 0.2*inch))
+            elif key == "Base_address":
+                elements.append(Paragraph(('<b>Base Address : </b>' + map_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Absolute_address":
+                elements.append(Paragraph(('<b>Absolute Address: </b>' + ('&nbsp;')*2 + map_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Base_offset":
+                elements.append(Paragraph(('<b>Base Offset : </b>' + ('&nbsp;')*13 + map_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Size":
+                elements.append(Paragraph(('<b>Size(bytes): </b>' + map_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+                elements.append(Spacer(0, 0.2*inch))
+            else:
+                print("Error - Not a valid key for the addrmap")
+        ## Actual Header data
+        P_offset_header = Paragraph('<b>Offset</b>',styleSheet["BodyTextT"])    
+        P_identifier_header = Paragraph('<b>Identifier</b>',styleSheet["BodyTextT"])    
+        P_name_header = Paragraph('<b>Name</b>',styleSheet["BodyTextT"])    
+
+        # Clear any previous values
+        table_data_regfile_list.clear()
+
+        table_data_regfile_list.append([P_offset_header, P_identifier_header, P_name_header])   
+              
+    ############################################################################
     # Create the address map information
     ############################################################################
     def create_addrmap_info(self, map_info_dict: dict):
@@ -274,6 +311,25 @@ class PDFCreator:
                                       P_access_header, 
                                       P_reset_header,
                                       P_name_header])
+    ############################################################################
+    # Create the reglist's list info
+    ############################################################################
+    def create_regfile_list_info(self, reglist_info_dict: dict, is_reserved: bool):
+        # Offset
+        P_offset = Paragraph(reglist_info_dict['Offset'],styleSheet["BodyTextP"])    
+
+        # Identifier
+        if is_reserved:
+            P_identifier = Paragraph(reglist_info_dict['Identifier'],styleSheet["BodyTextP"])    
+        else:
+            # <a href="#ID" color="blue"> Text </a>
+            link = '<a href="#%s" color="blue">' % (reglist_info_dict['Id'] + (reglist_info_dict['Name']).replace(" ",""))
+            P_identifier = Paragraph((link + reglist_info_dict['Identifier'] + "</a>"),styleSheet["BodyTextP"])    
+
+        # Name
+        P_name = Paragraph(reglist_info_dict['Name'],styleSheet["BodyTextP"])    
+
+        table_data_regfile_list.append([P_offset, P_identifier, P_name])
 
     ############################################################################
     # Create the register's list info
@@ -314,6 +370,24 @@ class PDFCreator:
                                       P_reset,
                                       [P_name,P_desc],
                                       ])
+
+    def dump_regfile_list_info(self):
+
+        t=Table(table_data_regfile_list,
+                colWidths=[120,120,200],
+                splitByRow=1,
+                repeatRows=1,
+                style=[
+                    ('GRID',(0,0),(-1,-1),0.5,doc_color),
+                    ('LINEABOVE',(0,1),(-1,1),1,colors.black),
+                    ('BACKGROUND',(0,0),(-1,0),colors.HexColor(0xD9D9D9))
+                    ])
+
+        elements.append(t)
+        #elements.append(Spacer(1, 1*inch))
+        
+        # Page break
+        elements.append(PageBreak())
 
     ############################################################################
     # Used for dumping the registers table info into the pdf document 

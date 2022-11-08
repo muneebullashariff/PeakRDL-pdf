@@ -26,7 +26,7 @@ try:
     for input_file in input_files:
         input_file = input_dir + input_file 
         rdlc.compile_file(input_file)
-        rdlc_elab_list.append(rdlc.elaborate())
+        root = rdlc.elaborate()
 
 except RDLCompileError:
     sys.exit(1)
@@ -38,7 +38,7 @@ exporter = PDFExporter()
 ## All the input files output into one pdf file
 ##########
 dest_pdf_fl = "example_registers_spec.pdf"
-exporter.export(rdlc_elab_list, 
+exporter.export(root, 
                 os.path.join(output_dir, dest_pdf_fl),
                 use_uppercase_inst_name=True)
 
