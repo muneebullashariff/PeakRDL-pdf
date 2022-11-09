@@ -143,10 +143,16 @@ class PDFExporter:
             #print(uid)
             self.visit_addressable_node(node)
 
-
+        root_id = 0
         # Call the method for initiating the document creation
-        #self.generate_output_pdf(nodes, path)
-        self.create_regfile_list(node,0)
+        self.create_regfile_list(node,root_id)
+
+        for regfile_id, regfile in enumerate(node.children()):
+            #print("create_regmap_list regfile_id:%x"%(regfile_id))
+            self.create_regmap_list(regfile, root_id, regfile_id)
+            #for child in regfile.children():
+            #    print(child)
+            self.create_regmap_registers_info(regfile, root_id, regfile_id)
 
         self.pdf_create.build_document()
 
@@ -250,8 +256,6 @@ class PDFExporter:
         #print(this_id)
         return this_id
 
-  
-
     #####################################################################
     # Create the regfile list for all regiters
     #####################################################################
@@ -325,20 +329,20 @@ class PDFExporter:
     #####################################################################
     # Create the regmap list for all regiters
     #####################################################################
-    def create_regmap_list(self, node: Node, root_id: int): 
+    def create_regmap_list(self, node: Node, root_id: int, regfile_id: int):
         addrmap_strg = {}
         # set the required variable 
         self.set_address_width(node)
         self.set_base_address(node)
 
-        addrmap_strg['Name'] = "%s %s" % ((root_id+1),self.get_name(node))
+        addrmap_strg['Name'] = "%s.%s %s" % ((root_id+1),(regfile_id+1),self.get_name(node))
         addrmap_strg['Base_address'] = self.get_base_address(node)
         addrmap_strg['Size'] = self.get_addrmap_size(node)
         addrmap_strg['Desc'] = self.get_desc(node)
         self.pdf_create.create_addrmap_info(addrmap_strg)
 
         # Create a list of all registers for the map
-        for reg_id, reg in enumerate(node.registers()):
+        for reg_id, reg in enumerate(node.children()):
             addrmap_reg_list_strg = {}
             
             # Reserved addresses at the start of the address map
@@ -375,7 +379,7 @@ class PDFExporter:
             # Normal registers in the address map
             addrmap_reg_list_strg['Offset']     = self.format_address(reg.address_offset) 
             addrmap_reg_list_strg['Identifier'] = self.get_inst_name(reg)
-            addrmap_reg_list_strg['Id']         = "%s.%s" % ((root_id+1),(reg_id+1))
+            addrmap_reg_list_strg['Id']         = "%s.%s.%s" % ((root_id+1),(regfile_id+1),(reg_id+1))
             addrmap_reg_list_strg['Name']       = self.get_inst_name(reg)
             self.pdf_create.create_reg_list_info(addrmap_reg_list_strg, 0)
 
@@ -387,18 +391,18 @@ class PDFExporter:
     #####################################################################
     # Create the regiters info
     #####################################################################
-    def create_regmap_registers_info(self, node: AddrmapNode, root_id: int): 
+    def create_regmap_registers_info(self, node: AddrmapNode, root_id: int, regfile_id: int): 
         # Traverse all the registers for separate register(s) section
         for reg_id, reg in enumerate(node.registers()):
             registers_strg = {}
-            registers_strg['Name'] = "%s.%s %s" % ((root_id+1),(reg_id+1),self.get_inst_name(reg))
-            registers_strg['Desc1'] = self.get_name(reg)
-            registers_strg['Desc2'] = self.get_desc(reg)
+            registers_strg['Name'] = "%s.%s.%s %s" % ((root_id+1),(regfile_id+1),(reg_id+1),self.get_inst_name(reg))
             registers_strg['Absolute_address'] = self.get_reg_absolute_address(reg)
             registers_strg['Base_offset'] = self.get_reg_offset(reg)
             registers_strg['Reset'] = self.get_reg_reset(reg)
             registers_strg['Access'] = self.get_reg_access(reg)
             registers_strg['Size'] = self.get_reg_size(reg)
+            #registers_strg['Desc1'] = self.get_name(reg)
+            registers_strg['Desc2'] = self.get_desc(reg)
 
             self.pdf_create.create_register_info(registers_strg)
 

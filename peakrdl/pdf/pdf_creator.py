@@ -54,10 +54,17 @@ class MySimpleDocTemplate(SimpleDocTemplate):
 
             elif style == 'Header1PS':
                 # Pad spaces  
-                text = ' &nbsp;'*3 + text
+                #text = ' &nbsp;'*3 + text
                 key = 'h1ps-%s' % self.seq.nextf('Header1PS')
                 self.canv.bookmarkPage(key, fit="FitH")
                 self.notify('TOCEntry', (1, text, self.page, key))
+
+            elif style == 'Header2PS':
+                # Pad spaces  
+                text = ' &nbsp;'*3 + text
+                key = 'h2ps-%s' % self.seq.nextf('Header2PS')
+                self.canv.bookmarkPage(key, fit="FitH")
+                self.notify('TOCEntry', (2, text, self.page, key))
 
 ############################################################################
 # Main Pdf creater class with required properties
@@ -119,9 +126,14 @@ class PDFCreator:
                             fontSize = 12,
                             leading = 14)
 
+        h3 = ParagraphStyle(name = 'Heading3',
+                            fontName=_baseFontName,
+                            textColor=doc_color,
+                            fontSize = 12,
+                            leading = 14)
         # Table of contents 
         toc = TableOfContents()
-        toc.levelStyles = [h1, h2]
+        toc.levelStyles = [h1, h2, h3]
 
         elements.append(Paragraph('Table of Contents', styleSheet["Header1Toc"]))
         elements.append(Spacer(1, 1*inch))
@@ -143,7 +155,7 @@ class PDFCreator:
         styleSheet.add(ParagraphStyle(name='Header1PS',
                                       fontName=_baseFontNameB,
                                       textColor=doc_color,
-                                      fontSize=26,
+                                      fontSize=28,
                                       leading=12),
                        alias='H1pS')
 
@@ -160,6 +172,13 @@ class PDFCreator:
                                       fontSize=20,
                                       leading=12),
                        alias='H2p')
+
+        styleSheet.add(ParagraphStyle(name='Header2PS',
+                                      fontName=_baseFontNameB,
+                                      textColor=doc_color,
+                                      fontSize=20,
+                                      leading=12),
+                       alias='H2pS')
 
         styleSheet.add(ParagraphStyle(name='BodyTextP',
                                       fontName=_baseFontName,
@@ -232,7 +251,7 @@ class PDFCreator:
     def create_addrmap_info(self, map_info_dict: dict):
         for key in map_info_dict:
             if key == "Name":
-                elements.append(Paragraph(map_info_dict[key], styleSheet["H1p"]))
+                elements.append(Paragraph(map_info_dict[key], styleSheet["H1pS"]))
                 elements.append(Spacer(0, 0.5*inch))
             elif key == "Desc":
                 elements.append(Paragraph(map_info_dict[key], styleSheet["BodyTextP"]))
@@ -270,7 +289,7 @@ class PDFCreator:
                 tag_id = "<a name=\"" +  (reg_info_dict[key]).replace(" ","") + "\"/>"
                 dummy = "" # done so that the jump doesn't mask the required data
                 elements.append(Paragraph((tag_id + dummy), styleSheet["BodyTextP"]))
-                elements.append(Paragraph(reg_info_dict[key], styleSheet["H1pS"]))
+                elements.append(Paragraph(reg_info_dict[key], styleSheet["H2pS"]))
                 elements.append(Spacer(0, 0.5*inch))
             elif key == "Desc1":
                 elements.append(Paragraph(reg_info_dict[key], styleSheet["BodyTextP"]))
@@ -336,7 +355,7 @@ class PDFCreator:
         #print("============================P_identifier")
         #print(P_identifier)
         #print("============================")
-        
+
         # Name
         P_name = Paragraph(reglist_info_dict['Name'],styleSheet["BodyTextP"])    
 
@@ -355,7 +374,8 @@ class PDFCreator:
             P_identifier = Paragraph(reg_info_dict['Identifier'],styleSheet["BodyTextP"])    
         else:
             # <a href="#ID" color="blue"> Text </a>
-            link = '<a href="#%s" color="blue">' % (reg_info_dict['Id'] + (reg_info_dict['Name']).replace(" ",""))
+            #link = '<a href="#%s" color="blue">' % (reg_info_dict['Id'] + (reg_info_dict['Name']).replace(" ",""))
+            link = '<a>'
             P_identifier = Paragraph((link + reg_info_dict['Identifier'] + "</a>"),styleSheet["BodyTextP"])    
 
         # Name
