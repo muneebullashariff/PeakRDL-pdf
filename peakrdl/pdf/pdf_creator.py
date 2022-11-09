@@ -12,6 +12,8 @@ from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
 
 #fonts
+#download SimSun.ttf to fllow path
+#/usr/lib/python3/dist-packages/reportlab/fonts
 from reportlab.pdfbase import pdfmetrics   # 注册字体
 from reportlab.pdfbase.ttfonts import TTFont # 字体类
 
