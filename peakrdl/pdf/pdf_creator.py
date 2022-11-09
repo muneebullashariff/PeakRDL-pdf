@@ -182,6 +182,7 @@ class PDFCreator:
     # Build the document and write it to the disk 
     ############################################################################
     def build_document(self):
+        #print(elements)
         doc.multiBuild(elements, onFirstPage=myFirstPage, onLaterPages=myLaterPages)
 
     ############################################################################
@@ -210,6 +211,11 @@ class PDFCreator:
                 elements.append(Spacer(0, 0.2*inch))
             else:
                 print("Error - Not a valid key for the addrmap")
+
+        # Add the Register list
+        elements.append(Paragraph('Regfile List', styleSheet["H2p"]))
+        elements.append(Spacer(0, 0.4*inch))
+
         ## Actual Header data
         P_offset_header = Paragraph('<b>Offset</b>',styleSheet["BodyTextT"])    
         P_identifier_header = Paragraph('<b>Identifier</b>',styleSheet["BodyTextT"])    
@@ -323,9 +329,14 @@ class PDFCreator:
             P_identifier = Paragraph(reglist_info_dict['Identifier'],styleSheet["BodyTextP"])    
         else:
             # <a href="#ID" color="blue"> Text </a>
-            link = '<a href="#%s" color="blue">' % (reglist_info_dict['Id'] + (reglist_info_dict['Name']).replace(" ",""))
-            P_identifier = Paragraph((link + reglist_info_dict['Identifier'] + "</a>"),styleSheet["BodyTextP"])    
-
+            #link = '<a href="#%s" color="blue">' % (reglist_info_dict['Id'] + (reglist_info_dict['Name']).replace(" ",""))
+            link = '<a>'
+            P_identifier = Paragraph((link + reglist_info_dict['Identifier'] + "</a>"),styleSheet["BodyTextP"]) 
+        
+        #print("============================P_identifier")
+        #print(P_identifier)
+        #print("============================")
+        
         # Name
         P_name = Paragraph(reglist_info_dict['Name'],styleSheet["BodyTextP"])    
 

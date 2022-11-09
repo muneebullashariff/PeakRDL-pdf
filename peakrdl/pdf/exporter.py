@@ -263,6 +263,7 @@ class PDFExporter:
         regfile_map_strg['Size'] = self.get_addrmap_size(node)
         regfile_map_strg['Desc'] = self.get_desc(node)
 
+        #print(regfile_map_strg)
         self.pdf_create.create_regfile_info(regfile_map_strg)
 
         #print(node.__dict__)
@@ -283,14 +284,14 @@ class PDFExporter:
                 regfile_list_strg['Offset']     = offset_range 
                 regfile_list_strg['Identifier'] = "-" 
                 regfile_list_strg['Name']       = "-"
-                self.pdf_create.create_reg_list_info(regfile_list_strg, 1)
+                self.pdf_create.create_regfile_list_info(regfile_list_strg, 1)
                 #print(offset_range)
             # Reserved addresses in between the address map - for single space
             elif (regfile_id != 0) and (regfile_previous.inst.addr_offset + 2*regfile_previous.total_size) == regfile.inst.addr_offset:
                 regfile_list_strg['Offset']     = self.format_address(regfile_previous.inst.addr_offset + regfile_previous.total_size)
                 regfile_list_strg['Identifier'] = "-" 
                 regfile_list_strg['Name']       = "-"
-                self.pdf_create.create_reg_list_info(regfile_list_strg, 1)
+                self.pdf_create.create_regfile_list_info(regfile_list_strg, 1)
 
             # Reserved addresses in between the address map - for a range fo free spaces
             elif (regfile_id != 0) and (regfile_previous.inst.addr_offset + regfile_previous.total_size) < regfile.inst.addr_offset:
@@ -306,13 +307,15 @@ class PDFExporter:
                 regfile_list_strg['Offset']     = offset_range 
                 regfile_list_strg['Identifier'] = "-" 
                 regfile_list_strg['Name']       = "-"
-                self.pdf_create.create_reg_list_info(regfile_list_strg, 1)
+                self.pdf_create.create_regfile_list_info(regfile_list_strg, 1)
 
             # Normal registers in the address map
             regfile_list_strg['Offset']     = self.format_address(regfile.inst.addr_offset) 
             regfile_list_strg['Identifier'] = self.get_inst_name(regfile)
             regfile_list_strg['Id']         = "%s.%s" % ((root_id+1),(regfile_id+1))
             regfile_list_strg['Name']       = self.get_inst_name(regfile)
+
+            #print(regfile_list_strg)
             self.pdf_create.create_regfile_list_info(regfile_list_strg, 0)
 
             regfile_previous = regfile
