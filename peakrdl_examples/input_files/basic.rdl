@@ -40,6 +40,8 @@ addrmap basic {
     regfile  {
         desc = "
             this is a regfile with a single register
+
+            你好 世界
         ";
         reg {
             field {sw=rw; hw=r;} f[15:0] = 1234;

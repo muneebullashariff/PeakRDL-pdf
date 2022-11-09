@@ -11,6 +11,11 @@ from reportlab.platypus.doctemplate import SimpleDocTemplate
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
 
+#fonts
+from reportlab.pdfbase import pdfmetrics   # 注册字体
+from reportlab.pdfbase.ttfonts import TTFont # 字体类
+
+
 from peakrdl_examples import myFirstPage, myLaterPages
 
 from reportlab.rl_config import canvas_basefontname as _baseFontName, \
@@ -82,6 +87,8 @@ class PDFCreator:
         if kwargs:
             raise TypeError("got an unexpected keyword argument '%s'" % list(kwargs.keys())[0])
 
+        pdfmetrics.registerFont(TTFont('SimSun', 'SimSun.ttf'))
+
         # Define variables used during creation
         global doc, elements, styleSheet, doc_color
         global table_data_regfile_list,table_data_reg_list, table_data_field_list, toc
@@ -109,6 +116,7 @@ class PDFCreator:
         # Add more custom styles
         self.add_more_styles()
 
+        #elements.setFont("SimSun", 14)
         # First page
         elements.append(PageBreak())
 
@@ -181,11 +189,19 @@ class PDFCreator:
                        alias='H2pS')
 
         styleSheet.add(ParagraphStyle(name='BodyTextP',
-                                      fontName=_baseFontName,
+                                      #fontName=_baseFontName,
+                                      fontName='SimSun',
                                       textColor=doc_color,
                                       fontSize=10,
                                       leading=12),
                        alias='BTP')
+                       
+        styleSheet.add(ParagraphStyle(name='SimSunP',
+                                      fontName='SimSun',
+                                      textColor=doc_color,
+                                      fontSize=10,
+                                      leading=12),
+                       alias='SimSunP')
 
         styleSheet.add(ParagraphStyle(name='BodyTextT',
                                       fontName=_baseFontName,
@@ -213,7 +229,7 @@ class PDFCreator:
                 elements.append(Paragraph(map_info_dict[key], styleSheet["H1p"]))
                 elements.append(Spacer(0, 0.5*inch))
             elif key == "Desc":
-                elements.append(Paragraph(map_info_dict[key], styleSheet["BodyTextP"]))
+                elements.append(Paragraph(map_info_dict[key], styleSheet["BodyTextT"]))
                 elements.append(Spacer(0, 0.2*inch))
             elif key == "Base_address":
                 elements.append(Paragraph(('<b>Base Address : </b>' + map_info_dict[key]), 
