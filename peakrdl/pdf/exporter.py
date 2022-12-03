@@ -6,6 +6,8 @@ import time
 import hashlib
 import operator
 import math
+import shutil
+import markdown
 from systemrdl.node import RootNode, Node, RegNode, AddrmapNode, RegfileNode
 from systemrdl.node import FieldNode, MemNode, AddressableNode
 from systemrdl.rdltypes import AccessType, OnReadType, OnWriteType
@@ -18,6 +20,7 @@ from typing import Any, Optional, Tuple, List, Dict, Union
 from collections import OrderedDict
 from .search_indexer import SearchIndexer
 from systemrdl.component import Component
+import xml.dom.minidom
 
 class BigInt:
     def __init__(self, v: int):
@@ -78,6 +81,24 @@ class PDFExporter:
         self.RootNodeIds = [] # type: List[int]
         self.current_id = -1
         self.indexer = None # type: SearchIndexer
+
+        markdown_inst = kwargs.pop("markdown_inst", None)
+
+        if markdown_inst is None:
+            self.markdown_inst = markdown.Markdown(
+                extensions = [
+                    'extra',
+                    'admonition',
+                    'mdx_math',
+                ],
+                extension_configs={
+                    'mdx_math':{
+                        'add_preview': True
+                    }
+                }
+            )
+        else:
+            self.markdown_inst = markdown_inst
 
         # Create the global variable for pdf creation
         global pdf_create
@@ -152,7 +173,7 @@ class PDFExporter:
             self.create_regmap_list(regfile, root_id, regfile_id)
             #for child in regfile.children():
             #    print(child)
-            self.create_regmap_registers_info(regfile, root_id, regfile_id)
+            self.create_registers_info(regfile, root_id, regfile_id)
 
         self.pdf_create.build_document()
 
@@ -172,7 +193,7 @@ class PDFExporter:
                 # Traverse all the address maps
                 if isinstance(node, AddrmapNode):
                     self.create_regmap_list(node, root_id)
-                    self.create_regmap_registers_info(node, root_id)
+                    self.create_registers_info(node, root_id)
 
         # Dump all the data into the pdf file 
             # Dump all the data into the pdf file 
@@ -252,7 +273,7 @@ class PDFExporter:
         # Generate page for this node
         #self.create_regfile_list(this_id, node, children)
         #self.create_regmap_list(node, 0)
-        #self.create_regmap_registers_info(node, 0)
+        #self.create_registers_info(node, 0)
         #print(this_id)
         return this_id
 
@@ -265,7 +286,11 @@ class PDFExporter:
         regfile_map_strg['Absolute_address'] = self.get_reg_absolute_address(node)
         regfile_map_strg['Base_offset'] = self.get_reg_offset(node)
         regfile_map_strg['Size'] = self.get_addrmap_size(node)
-        regfile_map_strg['Desc'] = self.get_desc(node)
+        regfile_map_strg['Desc'] = self.get_node_html_desc(node)
+
+        #print("=====================================")
+        #print(self.get_reg_absolute_address(node))
+        #print("=====================================")
 
         #print(regfile_map_strg)
         self.pdf_create.create_regfile_info(regfile_map_strg)
@@ -296,7 +321,6 @@ class PDFExporter:
                 regfile_list_strg['Identifier'] = "-" 
                 regfile_list_strg['Name']       = "-"
                 self.pdf_create.create_regfile_list_info(regfile_list_strg, 1)
-
             # Reserved addresses in between the address map - for a range fo free spaces
             elif (regfile_id != 0) and (regfile_previous.inst.addr_offset + regfile_previous.total_size) < regfile.inst.addr_offset:
                 start_addr = regfile_previous.inst.addr_offset + regfile_previous.total_size
@@ -338,8 +362,8 @@ class PDFExporter:
         addrmap_strg['Name'] = "%s.%s %s" % ((root_id+1),(regfile_id+1),self.get_name(node))
         addrmap_strg['Base_address'] = self.get_base_address(node)
         addrmap_strg['Size'] = self.get_addrmap_size(node)
-        addrmap_strg['Desc'] = self.get_desc(node)
-        self.pdf_create.create_addrmap_info(addrmap_strg)
+        addrmap_strg['Desc'] = self.get_node_html_desc(node)
+        self.pdf_create.create_regmap_info(addrmap_strg)
 
         # Create a list of all registers for the map
         for reg_id, reg in enumerate(node.children()):
@@ -391,7 +415,7 @@ class PDFExporter:
     #####################################################################
     # Create the regiters info
     #####################################################################
-    def create_regmap_registers_info(self, node: AddrmapNode, root_id: int, regfile_id: int): 
+    def create_registers_info(self, node: AddrmapNode, root_id: int, regfile_id: int): 
         # Traverse all the registers for separate register(s) section
         for reg_id, reg in enumerate(node.registers()):
             registers_strg = {}
@@ -401,8 +425,7 @@ class PDFExporter:
             registers_strg['Reset'] = self.get_reg_reset(reg)
             registers_strg['Access'] = self.get_reg_access(reg)
             registers_strg['Size'] = self.get_reg_size(reg)
-            #registers_strg['Desc1'] = self.get_name(reg)
-            registers_strg['Desc2'] = self.get_desc(reg)
+            registers_strg['Desc'] = self.get_desc(reg)
 
             self.pdf_create.create_register_info(registers_strg)
 
@@ -440,6 +463,80 @@ class PDFExporter:
         s = (node.get_property("desc", default="")).replace("\n"," ")
         s = s.replace("  "," ")
         return s
+
+    def get_node_html_desc(self, node: Node, increment_heading: int=0) -> 'Optional[str]':
+        """
+        Wrapper function to get HTML description
+        If no description, returns None
+
+        Performs the following transformations on top of the built-in HTML desc
+        output:
+        - Increment any heading tags
+        - Transform img paths that point to local files. Copy referenced image to output
+        """
+
+        desc = node.get_html_desc(self.markdown_inst)
+        if desc is None:
+            return desc
+
+        # Keep HTML semantically correct by promoting heading tags if desc ends
+        # up as a child of existing headings.
+        if increment_heading > 0:
+            def heading_replace_callback(m: 're.Match') -> str:
+                new_heading = "<%sh%d>" % (
+                    m.group(1),
+                    min(int(m.group(2)) + increment_heading, 6)
+                )
+                return new_heading
+            desc = re.sub(r'<(/?)[hH](\d)>', heading_replace_callback, desc)
+
+        # Transform image references
+        # If an img reference points to a file on the local filesystem, then
+        # copy it to the output and transform the reference
+        if increment_heading > 0:
+            def img_transform_callback(m: 're.Match') -> str:
+                dom = xml.dom.minidom.parseString(m.group(0))
+                img_src = dom.childNodes[0].attributes["src"].value
+
+                if os.path.isabs(img_src):
+                    # Absolute local path, or root URL
+                    pass
+                elif re.match(r'(https?|file)://', img_src):
+                    # Absolute URL
+                    pass
+                else:
+                    # Looks like a relative path
+                    # See if it points to something relative to the source file
+                    path = self.try_resolve_rel_path(node.inst.def_src_ref, img_src)
+                    if path is not None:
+                        img_src = path
+
+                if os.path.exists(img_src):
+                    with open(img_src, 'rb') as f:
+                        md5 = hashlib.md5(f.read()).hexdigest()
+                    new_path = os.path.join(
+                        self.output_dir, "content",
+                        "%s_%s" % (md5[0:8], os.path.basename(img_src))
+                    )
+                    shutil.copyfile(img_src, new_path)
+                    dom.childNodes[0].attributes["src"].value = os.path.join(
+                        "content",
+                        "%s_%s" % (md5[0:8], os.path.basename(img_src))
+                    )
+                    return dom.childNodes[0].toxml()
+
+                return m.group(0)
+
+            desc = re.sub(r'<\s*img.*/>', img_transform_callback, desc)
+        return desc
+
+
+    def get_enum_html_desc(self, enum_member) -> str: # type: ignore
+        s = enum_member.get_html_desc(self.markdown_inst)
+        if s:
+            return s
+        else:
+            return ""
 
     def get_addrmap_size(self, node: Node) -> str:
         # Get the hex value 
