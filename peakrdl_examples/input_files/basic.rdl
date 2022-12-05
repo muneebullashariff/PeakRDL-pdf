@@ -2,12 +2,14 @@
 addrmap basic {
     name = "Turbo-basic";
     desc = "
-        This is a basic address map that is used to test the
-        address map parser.
+        This is a basic address map that is used to test the address map parser.It is not intended to be used for anything else.
+
+        [Retro Encabulator](https://www.youtube.com/watch?v=RXJKdh1KZ0w) is a sufficient substitute.
+
     ";
     regfile {
         desc = "
-            this is a regfile with some registers
+        
         ";
         reg reg_t{
             field {sw=rw; hw=r;} f1[15:0] = 1234;
@@ -40,6 +42,8 @@ addrmap basic {
     regfile  {
         desc = "
             this is a regfile with a single register
+
+            你好 世界
         ";
         reg {
             field {sw=rw; hw=r;} f[15:0] = 1234;
