@@ -10,8 +10,16 @@ from reportlab.rl_config import defaultPageSize
 from reportlab.platypus.doctemplate import SimpleDocTemplate
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
+from html2rml import html2rml
 
-from examples import myFirstPage, myLaterPages
+#fonts
+#download SimSun.ttf to fllow path
+#/usr/lib/python3/dist-packages/reportlab/fonts
+from reportlab.pdfbase import pdfmetrics   # 注册字体
+from reportlab.pdfbase.ttfonts import TTFont # 字体类
+
+
+from peakrdl_examples import myFirstPage, myLaterPages
 
 from reportlab.rl_config import canvas_basefontname as _baseFontName, \
                                 underlineWidth as _baseUnderlineWidth, \
@@ -54,10 +62,17 @@ class MySimpleDocTemplate(SimpleDocTemplate):
 
             elif style == 'Header1PS':
                 # Pad spaces  
-                text = ' &nbsp;'*3 + text
+                #text = ' &nbsp;'*3 + text
                 key = 'h1ps-%s' % self.seq.nextf('Header1PS')
                 self.canv.bookmarkPage(key, fit="FitH")
                 self.notify('TOCEntry', (1, text, self.page, key))
+
+            elif style == 'Header2PS':
+                # Pad spaces  
+                text = ' &nbsp;'*3 + text
+                key = 'h2ps-%s' % self.seq.nextf('Header2PS')
+                self.canv.bookmarkPage(key, fit="FitH")
+                self.notify('TOCEntry', (2, text, self.page, key))
 
 ############################################################################
 # Main Pdf creater class with required properties
@@ -75,9 +90,11 @@ class PDFCreator:
         if kwargs:
             raise TypeError("got an unexpected keyword argument '%s'" % list(kwargs.keys())[0])
 
+        pdfmetrics.registerFont(TTFont('SimSun', 'SimSun.ttf'))
+
         # Define variables used during creation
         global doc, elements, styleSheet, doc_color
-        global table_data_reg_list, table_data_field_list, toc
+        global table_data_regfile_list,table_data_reg_list, table_data_field_list, toc
 
         # Create the document
         doc = MySimpleDocTemplate(output_file, pagesize=A4)
@@ -86,6 +103,7 @@ class PDFCreator:
         elements = []
 
         ## Table data
+        table_data_regfile_list = []
         table_data_reg_list = []
         table_data_field_list = []
 
@@ -101,6 +119,7 @@ class PDFCreator:
         # Add more custom styles
         self.add_more_styles()
 
+        #elements.setFont("SimSun", 14)
         # First page
         elements.append(PageBreak())
 
@@ -118,9 +137,14 @@ class PDFCreator:
                             fontSize = 12,
                             leading = 14)
 
+        h3 = ParagraphStyle(name = 'Heading3',
+                            fontName=_baseFontName,
+                            textColor=doc_color,
+                            fontSize = 12,
+                            leading = 14)
         # Table of contents 
         toc = TableOfContents()
-        toc.levelStyles = [h1, h2]
+        toc.levelStyles = [h1, h2, h3]
 
         elements.append(Paragraph('Table of Contents', styleSheet["Header1Toc"]))
         elements.append(Spacer(1, 1*inch))
@@ -142,7 +166,7 @@ class PDFCreator:
         styleSheet.add(ParagraphStyle(name='Header1PS',
                                       fontName=_baseFontNameB,
                                       textColor=doc_color,
-                                      fontSize=26,
+                                      fontSize=28,
                                       leading=12),
                        alias='H1pS')
 
@@ -160,12 +184,27 @@ class PDFCreator:
                                       leading=12),
                        alias='H2p')
 
+        styleSheet.add(ParagraphStyle(name='Header2PS',
+                                      fontName=_baseFontNameB,
+                                      textColor=doc_color,
+                                      fontSize=20,
+                                      leading=12),
+                       alias='H2pS')
+
         styleSheet.add(ParagraphStyle(name='BodyTextP',
-                                      fontName=_baseFontName,
+                                      #fontName=_baseFontName,
+                                      fontName='SimSun',
                                       textColor=doc_color,
                                       fontSize=10,
                                       leading=12),
                        alias='BTP')
+                       
+        styleSheet.add(ParagraphStyle(name='SimSunP',
+                                      fontName='SimSun',
+                                      textColor=doc_color,
+                                      fontSize=10,
+                                      leading=12),
+                       alias='SimSunP')
 
         styleSheet.add(ParagraphStyle(name='BodyTextT',
                                       fontName=_baseFontName,
@@ -181,24 +220,85 @@ class PDFCreator:
     # Build the document and write it to the disk 
     ############################################################################
     def build_document(self):
+        #print(elements)
         doc.multiBuild(elements, onFirstPage=myFirstPage, onLaterPages=myLaterPages)
 
     ############################################################################
-    # Create the address map information
+    # Create the regfile map information
     ############################################################################
-    def create_addrmap_info(self, map_info_dict: dict):
+    def create_regfile_info(self, map_info_dict: dict):
         for key in map_info_dict:
             if key == "Name":
                 elements.append(Paragraph(map_info_dict[key], styleSheet["H1p"]))
+                #print(Paragraph(map_info_dict[key], styleSheet["H1p"]))
                 elements.append(Spacer(0, 0.5*inch))
             elif key == "Desc":
-                elements.append(Paragraph(map_info_dict[key], styleSheet["BodyTextP"]))
+                #elements.append(Paragraph(map_info_dict[key], styleSheet["BodyTextT"]))
+                print("=====================================")
+                desc_list = map_info_dict[key]
+                desc_list = desc_list.splitlines()
+                desc_list = list(desc_list)
+                #elements.append(Paragraph(html2rml(map_info_dict[key]), styleSheet["BodyTextP"]))
+
+                for desc_line in desc_list:
+                    print(1,desc_line)
+                    elements.append(Paragraph(desc_line, styleSheet["BodyTextP"]))
+                    #elements.append(Paragraph(html2rml(map_info_dict[key]), styleSheet["BodyTextP"]))
+                #print("=====================================")
+                #elements.append(html2rml(map_info_dict[key]))
+                #print(html2rml(map_info_dict[key]))
+                #print("=====================================")
+                elements.append(Spacer(0, 0.2*inch))
+            elif key == "Base_address":
+                elements.append(Paragraph(('<b>Base Address : </b>' + ('&nbsp;')*2 + map_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Absolute_address":
+                elements.append(Paragraph(('<b>Absolute Address: </b>'  + map_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Base_offset":
+                elements.append(Paragraph(('<b>Base Offset : </b>' + ('&nbsp;')*4 + map_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+            elif key == "Size":
+                elements.append(Paragraph(('<b>Size(bytes): </b>' + ('&nbsp;')*5 + map_info_dict[key]), 
+                                    styleSheet["BodyTextP"]))
+                elements.append(Spacer(0, 0.2*inch))
+            else:
+                print("Error - Not a valid key for the addrmap")
+
+        # Add the Register list
+        elements.append(Paragraph('Regfile List', styleSheet["H2p"]))
+        elements.append(Spacer(0, 0.4*inch))
+
+        ## Actual Header data
+        P_offset_header = Paragraph('<b>Offset</b>',styleSheet["BodyTextT"])    
+        P_identifier_header = Paragraph('<b>Identifier</b>',styleSheet["BodyTextT"])    
+        P_name_header = Paragraph('<b>Name</b>',styleSheet["BodyTextT"])    
+
+        # Clear any previous values
+        table_data_regfile_list.clear()
+
+        table_data_regfile_list.append([P_offset_header, P_identifier_header, P_name_header])   
+              
+    ############################################################################
+    # Create the address map information
+    ############################################################################
+    def create_regmap_info(self, map_info_dict: dict):
+        for key in map_info_dict:
+            if key == "Name":
+                elements.append(Paragraph(map_info_dict[key], styleSheet["H1pS"]))
+                elements.append(Spacer(0, 0.5*inch))
+            elif key == "Desc":
+                #elements.append(Paragraph(map_info_dict[key], styleSheet["BodyTextP"]))
+                #desc_list = map_info_dict[key].splitlines()
+                #desc_list = list(desc_list)
+                #for desc_line in desc_list:
+                #    elements.append(Paragraph(desc_line, styleSheet["BodyTextP"]))
                 elements.append(Spacer(0, 0.2*inch))
             elif key == "Base_address":
                 elements.append(Paragraph(('<b>Base Address: </b>' + map_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
             elif key == "Size":
-                elements.append(Paragraph(('<b>Size(bytes): </b>' + map_info_dict[key]), 
+                elements.append(Paragraph(('<b>Size(bytes): </b>' + ('&nbsp;')*1 + map_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
                 elements.append(Spacer(0, 0.2*inch))
             else:
@@ -227,28 +327,29 @@ class PDFCreator:
                 tag_id = "<a name=\"" +  (reg_info_dict[key]).replace(" ","") + "\"/>"
                 dummy = "" # done so that the jump doesn't mask the required data
                 elements.append(Paragraph((tag_id + dummy), styleSheet["BodyTextP"]))
-                elements.append(Paragraph(reg_info_dict[key], styleSheet["H1pS"]))
+                elements.append(Paragraph(reg_info_dict[key], styleSheet["H2pS"]))
                 elements.append(Spacer(0, 0.5*inch))
-            elif key == "Desc1":
-                elements.append(Paragraph(reg_info_dict[key], styleSheet["BodyTextP"]))
-                elements.append(Spacer(0, 0.2*inch))
-            elif key == "Desc2":
-                elements.append(Paragraph(reg_info_dict[key], styleSheet["BodyTextP"]))
+            elif key == "Desc":
+                #elements.append(Paragraph(reg_info_dict[key], styleSheet["BodyTextP"]))
+                #desc_list = reg_info_dict[key].splitlines()
+                #desc_list = list(desc_list)
+                #for desc_line in desc_list:
+                #    elements.append(Paragraph(desc_line, styleSheet["BodyTextP"]))
                 elements.append(Spacer(0, 0.2*inch))
             elif key == "Absolute_address":
-                elements.append(Paragraph(('<b>Absolute Address: </b>' + ('&nbsp;')*2 + reg_info_dict[key]), 
+                elements.append(Paragraph(('<b>Absolute Address: </b>' + reg_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
             elif key == "Base_offset":
-                elements.append(Paragraph(('<b>Base Offset: </b>' + ('&nbsp;')*13 + reg_info_dict[key]), 
+                elements.append(Paragraph(('<b>Base Offset: </b>' + ('&nbsp;')*5 + reg_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
             elif key == "Reset":
-                elements.append(Paragraph(('<b>Reset: </b>' + ('&nbsp;')*23 + reg_info_dict[key]), 
+                elements.append(Paragraph(('<b>Reset: </b>' + ('&nbsp;')*11 + reg_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
             elif key == "Access":
-                elements.append(Paragraph(('<b>Access: </b>' + ('&nbsp;')*20 + reg_info_dict[key]), 
+                elements.append(Paragraph(('<b>Access: </b>' + ('&nbsp;')*10 + reg_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
             elif key == "Size":
-                elements.append(Paragraph(('<b>Size(bytes): </b>' + ('&nbsp;')*14 + reg_info_dict[key]), 
+                elements.append(Paragraph(('<b>Size(bytes): </b>' + ('&nbsp;')*5 + reg_info_dict[key]), 
                                     styleSheet["BodyTextP"]))
                 elements.append(Spacer(0, 0.2*inch))
             else:
@@ -274,6 +375,30 @@ class PDFCreator:
                                       P_access_header, 
                                       P_reset_header,
                                       P_name_header])
+    ############################################################################
+    # Create the reglist's list info
+    ############################################################################
+    def create_regfile_list_info(self, reglist_info_dict: dict, is_reserved: bool):
+        # Offset
+        P_offset = Paragraph(reglist_info_dict['Offset'],styleSheet["BodyTextP"])    
+
+        # Identifier
+        if is_reserved:
+            P_identifier = Paragraph(reglist_info_dict['Identifier'],styleSheet["BodyTextP"])    
+        else:
+            # <a href="#ID" color="blue"> Text </a>
+            #link = '<a href="#%s" color="blue">' % (reglist_info_dict['Id'] + (reglist_info_dict['Name']).replace(" ",""))
+            link = '<a>'
+            P_identifier = Paragraph((link + reglist_info_dict['Identifier'] + "</a>"),styleSheet["BodyTextP"]) 
+        
+        #print("============================P_identifier")
+        #print(P_identifier)
+        #print("============================")
+
+        # Name
+        P_name = Paragraph(reglist_info_dict['Name'],styleSheet["BodyTextP"])    
+
+        table_data_regfile_list.append([P_offset, P_identifier, P_name])
 
     ############################################################################
     # Create the register's list info
@@ -288,7 +413,8 @@ class PDFCreator:
             P_identifier = Paragraph(reg_info_dict['Identifier'],styleSheet["BodyTextP"])    
         else:
             # <a href="#ID" color="blue"> Text </a>
-            link = '<a href="#%s" color="blue">' % (reg_info_dict['Id'] + (reg_info_dict['Name']).replace(" ",""))
+            #link = '<a href="#%s" color="blue">' % (reg_info_dict['Id'] + (reg_info_dict['Name']).replace(" ",""))
+            link = '<a>'
             P_identifier = Paragraph((link + reg_info_dict['Identifier'] + "</a>"),styleSheet["BodyTextP"])    
 
         # Name
@@ -314,6 +440,24 @@ class PDFCreator:
                                       P_reset,
                                       [P_name,P_desc],
                                       ])
+
+    def dump_regfile_list_info(self):
+
+        t=Table(table_data_regfile_list,
+                colWidths=[120,120,200],
+                splitByRow=1,
+                repeatRows=1,
+                style=[
+                    ('GRID',(0,0),(-1,-1),0.5,doc_color),
+                    ('LINEABOVE',(0,1),(-1,1),1,colors.black),
+                    ('BACKGROUND',(0,0),(-1,0),colors.HexColor(0xD9D9D9))
+                    ])
+
+        elements.append(t)
+        #elements.append(Spacer(1, 1*inch))
+        
+        # Page break
+        elements.append(PageBreak())
 
     ############################################################################
     # Used for dumping the registers table info into the pdf document 
@@ -342,7 +486,7 @@ class PDFCreator:
     def dump_field_list_info(self):
 
         t=Table(table_data_field_list,
-                colWidths=[45,80,50,83,192],
+                colWidths=[50,80,50,83,192],
                 splitByRow=1,
                 repeatRows=1,
                 style=[
