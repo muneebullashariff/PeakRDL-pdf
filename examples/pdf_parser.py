@@ -3,7 +3,8 @@ import os
 from systemrdl import RDLCompiler, RDLCompileError
 from systemrdl.node import RootNode, Node, RegNode, AddrmapNode, RegfileNode
 from systemrdl.node import FieldNode, MemNode, AddressableNode
-from peakrdl.pdf import PDFExporter
+from peakrdl_pdf import PDFExporter
+from front_pg_later_pgs_info import myFirstPage, myLaterPages
 
 # Ignore this. Only needed for this example
 this_dir = os.path.dirname(os.path.realpath(__file__))
@@ -32,7 +33,8 @@ except RDLCompileError:
     sys.exit(1)
 
 ## Generate the PDF output files
-exporter = PDFExporter()
+exporter = PDFExporter(onFirstPage=myFirstPage, onLaterPages=myLaterPages)
+#exporter = PDFExporter()
 
 ##########
 ## All the input files output into one pdf file

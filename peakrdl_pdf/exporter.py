@@ -115,7 +115,6 @@ class PDFExporter:
         # root_list is elaborated output of input .rdl file(s)
         for root_id, root in enumerate(root_list):
             for node in root.descendants(in_post_order=True):
-
                 # Traverse all the address maps
                 if isinstance(node, AddrmapNode):
                     self.create_regmap_list(node, root_id)

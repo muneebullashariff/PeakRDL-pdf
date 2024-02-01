@@ -2,7 +2,7 @@ import sys
 import os
 import argparse
 from systemrdl import RDLCompiler, RDLCompileError
-from peakrdl.pdf import PDFExporter
+from peakrdl_pdf import PDFExporter
 import importlib.util
 
 from typing import TYPE_CHECKING
@@ -42,7 +42,7 @@ class Exporter(ExporterSubcommandPlugin):
 
     def do_export(self, top_node: 'AddrmapNode', options: 'argparse.Namespace') -> None:
         if not options.template_path:
-            from peakrdl.pdf.pages import myFirstPage, myLaterPages
+            from peakrdl_pdf.pages import myFirstPage, myLaterPages
             exporter = PDFExporter(onFirstPage=myFirstPage, onLaterPages=myLaterPages)
         else:
             spec = importlib.util.spec_from_file_location("peakrdl_pdf_pages", options.template_path)
@@ -51,4 +51,4 @@ class Exporter(ExporterSubcommandPlugin):
             spec.loader.exec_module(foo)
             exporter = PDFExporter(onFirstPage=peakrdl_pdf_pages.myFirstPage, onLaterPages=peakrdl_pdf_pages.myLaterPages)
 
-        exporter.export([top_node], options.output)
+        exporter.export([top_node.parent,], options.output)

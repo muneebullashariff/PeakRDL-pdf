@@ -34,6 +34,8 @@ def myFirstPage(canvas, doc):
     canvas.setFillColor(doc_color)
     canvas.setFont('Times-Bold', 25)
     canvas.drawString(181, 500, ' Example Registers Specification')
+    canvas.setFont('Times-Bold', 10)
+    canvas.drawString(186, 470, ' (Non default template)')
 
     # Date of creation
     canvas.setFillColor(doc_color)

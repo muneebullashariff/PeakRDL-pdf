@@ -10,14 +10,8 @@ from reportlab.rl_config import defaultPageSize
 from reportlab.platypus.doctemplate import SimpleDocTemplate
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
+from .default_pages import  myFirstPage, myLaterPages
 
-# This only works on standalone
-try:
-    from ...examples import myFirstPage, myLaterPages
-    print(myFirstPage, myLaterPages)
-except:
-    print("failed import")
-    pass
 from reportlab.rl_config import canvas_basefontname as _baseFontName, \
                                 underlineWidth as _baseUnderlineWidth, \
                                 underlineOffset as _baseUnderlineOffset, \

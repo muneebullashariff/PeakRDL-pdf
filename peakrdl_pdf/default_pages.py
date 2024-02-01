@@ -1,3 +1,4 @@
+import os
 import datetime
 from reportlab.lib import colors
 
@@ -7,7 +8,7 @@ doc_color  = colors.HexColor(0x24001e)
 ############################################################################
 # Define the fixed features of the first page of the document
 ############################################################################
-Example_logo = "example_logo.png"
+Example_logo = os.path.join(os.path.dirname(os.path.realpath(__file__)), "example_logo.png")
 
 def myFirstPage(canvas, doc):
     canvas.saveState()
