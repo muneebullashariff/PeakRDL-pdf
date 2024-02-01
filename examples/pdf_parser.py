@@ -3,7 +3,8 @@ import os
 from systemrdl import RDLCompiler, RDLCompileError
 from systemrdl.node import RootNode, Node, RegNode, AddrmapNode, RegfileNode
 from systemrdl.node import FieldNode, MemNode, AddressableNode
-from peakrdl.pdf import PDFExporter
+from peakrdl_pdf import PDFExporter
+from front_pg_later_pgs_info import myFirstPage, myLaterPages
 
 # Ignore this. Only needed for this example
 this_dir = os.path.dirname(os.path.realpath(__file__))
@@ -40,7 +41,10 @@ exporter = PDFExporter()
 dest_pdf_fl = "example_registers_spec.pdf"
 exporter.export(rdlc_elab_list, 
                 os.path.join(output_dir, dest_pdf_fl),
-                use_uppercase_inst_name=True)
+                use_uppercase_inst_name=True,
+                # Enable this for custom page rendering
+                #onFirstPage=myFirstPage, onLaterPages=myLaterPages
+                )
 
 print("Generated the output file - %s " %dest_pdf_fl)
 

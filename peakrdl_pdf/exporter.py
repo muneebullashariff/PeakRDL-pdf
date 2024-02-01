@@ -85,6 +85,15 @@ class PDFExporter:
             if False, all the instance names will be in lowercase
         """
 
+        # use default functions if not given as arguments
+        onFirstPage = kwargs.pop("onFirstPage", None)
+        onLaterPages = kwargs.pop("onLaterPages", None)
+        self.pages = {}
+        if onFirstPage:
+            self.pages["onFirstPage"] = onFirstPage
+        if onLaterPages:
+            self.pages["onLaterPages"] = onLaterPages
+
         self.use_uppercase_inst_name = kwargs.pop("use_uppercase_inst_name", True)
 
         # Check for stray kwargs
@@ -100,13 +109,12 @@ class PDFExporter:
     def generate_output_pdf(self, root_list: list, path: str):
 
         # Create the object
-        self.pdf_create = PDFCreator(path)
+        self.pdf_create = PDFCreator(path, **self.pages)
 
         # Go through multiple input files 
         # root_list is elaborated output of input .rdl file(s)
         for root_id, root in enumerate(root_list):
             for node in root.descendants(in_post_order=True):
-
                 # Traverse all the address maps
                 if isinstance(node, AddrmapNode):
                     self.create_regmap_list(node, root_id)

@@ -10,8 +10,7 @@ from reportlab.rl_config import defaultPageSize
 from reportlab.platypus.doctemplate import SimpleDocTemplate
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
-
-from ...examples import myFirstPage, myLaterPages
+from .default_pages import  myFirstPage, myLaterPages
 
 from reportlab.rl_config import canvas_basefontname as _baseFontName, \
                                 underlineWidth as _baseUnderlineWidth, \
@@ -70,6 +69,17 @@ class PDFCreator:
         """
         Constructor for the PDF Creator class
         """
+
+        # use default functions if not given as arguments
+        # we write it this way so that if keys exist, we can run even if local myFirstPage, myLaterPages failed loading above
+        if "onFirstPage" in kwargs:
+            self.myFirstPage = kwargs.pop("onFirstPage")
+        else:
+            self.myFirstPage = myFirstPage
+        if "onLaterPages" in kwargs:
+            self.myLaterPages = kwargs.pop("onLaterPages")
+        else:
+            self.myLaterPages = myLaterPages
 
         # Check for stray kwargs
         if kwargs:
@@ -181,7 +191,7 @@ class PDFCreator:
     # Build the document and write it to the disk 
     ############################################################################
     def build_document(self):
-        doc.multiBuild(elements, onFirstPage=myFirstPage, onLaterPages=myLaterPages)
+        doc.multiBuild(elements, onFirstPage=self.myFirstPage, onLaterPages=self.myLaterPages)
 
     ############################################################################
     # Create the address map information
