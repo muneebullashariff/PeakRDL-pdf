@@ -8,7 +8,7 @@ cd path_to_folder
 git clone https://github.com/muneebullashariff/PeakRDL-pdf.git  
 cd PeakRDL-pdf
 pip3 install -e .      
-# only necessary if using -e above. if not using -e, it will be installed automaticaly
+# The following is only necessary if using -e above. if not using -e, it will be installed automaticaly
 pip3 install reportlab
 ```
 Advantages of this approach are:  
@@ -45,13 +45,13 @@ PeakRDL-pdf can be used an export plugin:
 cd examples
 python3 -m peakrdl pdf -o test.pdf input_files/atxmega_spi.rdl
 ```
-In this mode, two more flags are supported:
-`--use-uppercase-inst-name`
-    If True, (default) then all instance names will be Uppercase 
-`--template-path`
-    You need to supply a Python file containing the definition of two functions: `myFirstPage` and `myLaterPages`.
-    This allows customizing the PDF output.
-    If not given, peakrdl-pdf will use the default implementation.
+In this mode, two more flags are supported:  
+`--use-uppercase-inst-name`  
+    If True, (default) then all instance names will be Uppercase   
+`--template-path`  
+    You need to supply a Python file containing the definition of two functions: `myFirstPage` and `myLaterPages`.  
+    This allows customizing the PDF output.  
+    If not given, peakrdl-pdf will use the default implementation.  
 
 ```
 cd examples
@@ -76,7 +76,7 @@ Perform the export!
 * `use_uppercase_inst_name`
     * If True, (default) then all instance names will be Uppercase 
     * If False, then all the instance names will be Lowercase
-* `onFirstPage`
+* `onFirstPage`  
     The name of a Python function to render the first page
-* `onLaterPages`
+* `onLaterPages`  
     The name of a python function to render all other pages
