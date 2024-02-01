@@ -21,7 +21,8 @@ setuptools.setup(
     packages=['peakrdl.pdf'],
     include_package_data=True,
     install_requires=[
-        "systemrdl-compiler>=1.12.0"
+        "systemrdl-compiler>=1.12.0",
+        "reportlab"
     ],
     classifiers=(
         "Development Status :: 5 - Production/Stable",
@@ -41,4 +42,9 @@ setuptools.setup(
         "Source": "https://github.com/muneebullashariff/PeakRDL-pdf",
         "Tracker": "https://github.com/muneebullashariff/PeakRDL-pdf/issues"
     },
+    entry_points = {
+        'peakrdl.exporters': [
+            'pdf = peakrdl.pdf.__peakrdl__:Exporter'
+        ]
+    }
 )

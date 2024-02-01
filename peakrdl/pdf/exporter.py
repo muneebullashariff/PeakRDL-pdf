@@ -18,6 +18,14 @@ class PDFExporter:
         """
         Constructor for the PDF Exporter class
         """
+        # use default functions if not given as arguments
+        onFirstPage = kwargs.pop("onFirstPage", None)
+        onLaterPages = kwargs.pop("onLaterPages", None)
+        self.pages = {}
+        if onFirstPage:
+            self.pages["onFirstPage"] = onFirstPage
+        if onLaterPages:
+            self.pages["onLaterPages"] = onLaterPages
 
         # Check for stray kwargs
         if kwargs:
@@ -86,6 +94,7 @@ class PDFExporter:
         """
 
         self.use_uppercase_inst_name = kwargs.pop("use_uppercase_inst_name", True)
+        self.template_path = kwargs.pop("template_path", "")
 
         # Check for stray kwargs
         if kwargs:
@@ -100,7 +109,7 @@ class PDFExporter:
     def generate_output_pdf(self, root_list: list, path: str):
 
         # Create the object
-        self.pdf_create = PDFCreator(path)
+        self.pdf_create = PDFCreator(path, **self.pages)
 
         # Go through multiple input files 
         # root_list is elaborated output of input .rdl file(s)
