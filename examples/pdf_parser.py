@@ -33,8 +33,7 @@ except RDLCompileError:
     sys.exit(1)
 
 ## Generate the PDF output files
-exporter = PDFExporter(onFirstPage=myFirstPage, onLaterPages=myLaterPages)
-#exporter = PDFExporter()
+exporter = PDFExporter()
 
 ##########
 ## All the input files output into one pdf file
@@ -42,7 +41,10 @@ exporter = PDFExporter(onFirstPage=myFirstPage, onLaterPages=myLaterPages)
 dest_pdf_fl = "example_registers_spec.pdf"
 exporter.export(rdlc_elab_list, 
                 os.path.join(output_dir, dest_pdf_fl),
-                use_uppercase_inst_name=True)
+                use_uppercase_inst_name=True,
+                # Enable this for custom page rendering
+                #onFirstPage=myFirstPage, onLaterPages=myLaterPages
+                )
 
 print("Generated the output file - %s " %dest_pdf_fl)
 

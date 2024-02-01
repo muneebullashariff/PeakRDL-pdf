@@ -18,14 +18,6 @@ class PDFExporter:
         """
         Constructor for the PDF Exporter class
         """
-        # use default functions if not given as arguments
-        onFirstPage = kwargs.pop("onFirstPage", None)
-        onLaterPages = kwargs.pop("onLaterPages", None)
-        self.pages = {}
-        if onFirstPage:
-            self.pages["onFirstPage"] = onFirstPage
-        if onLaterPages:
-            self.pages["onLaterPages"] = onLaterPages
 
         # Check for stray kwargs
         if kwargs:
@@ -93,8 +85,16 @@ class PDFExporter:
             if False, all the instance names will be in lowercase
         """
 
+        # use default functions if not given as arguments
+        onFirstPage = kwargs.pop("onFirstPage", None)
+        onLaterPages = kwargs.pop("onLaterPages", None)
+        self.pages = {}
+        if onFirstPage:
+            self.pages["onFirstPage"] = onFirstPage
+        if onLaterPages:
+            self.pages["onLaterPages"] = onLaterPages
+
         self.use_uppercase_inst_name = kwargs.pop("use_uppercase_inst_name", True)
-        self.template_path = kwargs.pop("template_path", "")
 
         # Check for stray kwargs
         if kwargs:

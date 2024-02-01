@@ -41,14 +41,12 @@ class Exporter(ExporterSubcommandPlugin):
         pass
 
     def do_export(self, top_node: 'AddrmapNode', options: 'argparse.Namespace') -> None:
-        if not options.template_path:
-            from peakrdl_pdf.default_pages import myFirstPage, myLaterPages
-            exporter = PDFExporter(onFirstPage=myFirstPage, onLaterPages=myLaterPages)
-        else:
+        exporter = PDFExporter()
+        if options.template_path:
             spec = importlib.util.spec_from_file_location("peakrdl_pdf_pages", options.template_path)
             peakrdl_pdf_pages = importlib.util.module_from_spec(spec)
             sys.modules["peakrdl_pdf_pages"] = peakrdl_pdf_pages
-            spec.loader.exec_module(foo)
-            exporter = PDFExporter(onFirstPage=peakrdl_pdf_pages.myFirstPage, onLaterPages=peakrdl_pdf_pages.myLaterPages)
-
-        exporter.export([top_node.parent,], options.output)
+            spec.loader.exec_module(peakrdl_pdf_pages)
+            exporter.export([top_node.parent,], options.output, onFirstPage=peakrdl_pdf_pages.myFirstPage, onLaterPages=peakrdl_pdf_pages.myLaterPages)
+        else:
+            exporter.export([top_node.parent,], options.output)
